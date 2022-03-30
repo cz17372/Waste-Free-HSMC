@@ -195,7 +195,7 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
         targetgradU(x) = gradient(targetU,x)
         targetH(x,v) = targetU(x)+1/2*norm(v)^2
         println("Running HMC...")
-        Threads.@threads for n = 1:M
+        for n = 1:M
             x0 = X[t-1][A[n],:]
             v0 = randn(D)
             newx,newv = MH(x0,v0,P,ϵ,targetgradU,targetH)
@@ -207,20 +207,25 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
         println("finding new λ...")
         tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
         #newλ = find_zero(tar,(λ[end],10.0),Bisection())
-        b = λ[end]+0.02
-        while tar(b) >= 0.0
-            println("tar(b) = ",tar(b))
-            b += 0.02
+        if λ[end] == 0.0
+            b = 0.001
+        else
+            b = 1.2*λ[end]
+        end
+        a = λ[end]
+        while tar(b) > 0.0
+            a = b
+            b += 1/5*b
         end
         println("start optimisation...")
-        newλ = brent(tar,λ[end],b)
+        newλ = brent(tar,a,b)
         println("the new λ is",newλ)
         if newλ >1.0
             push!(λ,1.0)
         else
             push!(λ,newλ)
         end
-        newH(x,v) = (1-newλ)*U0(x) + newλ*U(x) + 1/2*norm(v)^2
+        newH(x,v) = (1-λ[end])*U0(x) + λ[end]*U(x) + 1/2*norm(v)^2
         logW = hcat(logW,zeros(N))
         W = hcat(W,zeros(N))
         logW[:,t] = getW(X[t],V[t],newH,targetH)
@@ -230,7 +235,7 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
     return (X=X,λ=λ,W=W,logW=logW)
 end
 
-R = SMC(200000,200,U0,U,61,0.5,0.2,initDist)
+R = SMC(10000,100,U0,U,61,0.5,0.2,initDist)
 
 sum(log.(mean(exp.(R.logW[:,2:end]),dims=1)))
 
