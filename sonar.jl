@@ -194,7 +194,8 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
         targetU(x) = (1-λ[t-1])*U0(x) + λ[t-1]*U(x)
         targetgradU(x) = gradient(targetU,x)
         targetH(x,v) = targetU(x)+1/2*norm(v)^2
-        for n = 1:M
+        println("Running HMC...")
+        Threads.@threads for n = 1:M
             x0 = X[t-1][A[n],:]
             v0 = randn(D)
             newx,newv = MH(x0,v0,P,ϵ,targetgradU,targetH)
@@ -205,7 +206,12 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
         end
         tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
         #newλ = find_zero(tar,(λ[end],10.0),Bisection())
-        newλ = brent(tar,λ[end],10.0)
+        scale = 1.5
+        while tar(scale*λ[end]) >= 0.0
+            scale += 0.5
+        end
+        println("finding new λ...")
+        newλ = brent(tar,λ[end],scale*λ[end])
         println("the new λ is",newλ)
         if newλ >1.0
             push!(λ,1.0)

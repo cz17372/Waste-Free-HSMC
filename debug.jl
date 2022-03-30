@@ -119,4 +119,27 @@ end
 
 @time brent(tar,λ[end-1],10.0)
 
-@time newλ = find_zero(tar,(λ[end-1],10.0),Bisection())
+@time newλ = find_zero(tar,(λ[end-1],1.65*λ[end-1]),Bisection())
+
+@time brent(tar,λ[end-1],2.0*λ[end-1])
+
+function bisect(f,a,b)
+    midpoint = (a+b)/2
+    left = f(a)
+    right = f(b)
+    while abs(f(midpoint)) > 1e-7
+        new = f(midpoint)
+        println(new)
+        if new*left > 0
+            a = midpoint
+            left = new
+        else
+            b = midpoint
+            right = new
+        end
+        midpoint = (a+b)/2
+    end
+    return midpoint
+end
+
+@time bisect(tar,λ[end-1],2*λ[end-1])
