@@ -204,14 +204,16 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
                 V[t][(n-1)*P+i,:] = newv[i,:]
             end
         end
+        println("finding new λ...")
         tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
         #newλ = find_zero(tar,(λ[end],10.0),Bisection())
-        scale = 1.5
-        while tar(scale*λ[end]) >= 0.0
-            scale += 0.5
+        b = λ[end]+0.02
+        while tar(b) >= 0.0
+            println("tar(b) = ",tar(b))
+            b += 0.02
         end
-        println("finding new λ...")
-        newλ = brent(tar,λ[end],scale*λ[end])
+        println("start optimisation...")
+        newλ = brent(tar,λ[end],b)
         println("the new λ is",newλ)
         if newλ >1.0
             push!(λ,1.0)
