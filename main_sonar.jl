@@ -1,4 +1,4 @@
-using Distributed, SharedArrays, Measures
+using Distributed, SharedArrays, Measures, JLD2
 NumWorkers = readline("Get Number of Workers")
 NumWorkers = parse(Int64,NumWorkers)
 addprocs(NumWorkers)
@@ -13,7 +13,7 @@ M = parse(Int64,M)
 ϵ = parse(Float64,ϵ)
 α = readline("Input α...")
 α = parse(Float64,α)
-
+filename = readline("Input Data File Name")
 @distributed for i = 1:100
     println("Running Simulation $(i)")
     R = SMC(N,M,U0,U,61,α,ϵ,initDist)
@@ -21,3 +21,7 @@ M = parse(Int64,M)
     E[i]  = sum(R.W[:,end].*mean(R.X[end],dims=2))
 end
 
+
+Info = "N = "*string(N)*" M = "*string(M)*" ϵ = "*string(ϵ)*" α = "*string(α)
+
+@save filename Info NC E
