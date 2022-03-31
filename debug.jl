@@ -1,60 +1,26 @@
-N = 10000
-M = 100
-D = 61
-α = 0.5
-ϵ = 0.2
 
-UVec = Array{Any,1}(undef,0); push!(UVec,x->U0(x))
-gradUVec = Array{Any,1}(undef,0);push!(gradUVec,x->gradient(UVec[1],x))
-HVec = Array{Any,1}(undef,0);push!(HVec,(x,v)->UVec[1](x)+1/2*norm(v)^2)
+@time R = SMC(200000,100,U0,U,61,0.5,0.2,initDist);
+sum(log.(mean(exp.(R.logW[:,2:end]),dims=1)))
 
-X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
-V = Array{Matrix,1}(undef,0);push!(V,zeros(N,D))
-λ = zeros(1)
-logW = zeros(N,1)
-W = zeros(N,1)
-P = div(N,M)
-for i = 1:N
-    X[1][i,:] = rand(initDist)
-    V[1][i,:] = randn(D)
-    logW[i,1] = -HVec[1](X[1][i,:],V[1][i,:])
-end
-MAX = findmax(logW[:,1])[1]
-W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
-t = 1
+lvec = y .* (z*x0)
+el   = exp.(-lvec)
+sum((-1 .+ 1 ./ (1 .+ el)) .* (y.*z),dims=1)[1,:]
 
-t +=1 # move to the next step
-push!(X,zeros(N,D));push!(V,zeros(N,D))
-A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...)# resample "starting points"
-targetU(x) = (1-λ[t-1])*U0(x) + λ[t-1]*U(x)
-targetgradU(x) = gradient(targetU,x)
-targetH(x,v) = targetU(x)+1/2*norm(v)^2
-for n = 1:M
-    x0 = X[t-1][A[n],:]
-    v0 = randn(D)
-    newx,newv = MH(x0,v0,P,ϵ,targetgradU,targetH)
-    for i = 1:P
-        X[t][(n-1)*P+i,:] = newx[i,:]
-        V[t][(n-1)*P+i,:] = newv[i,:]
-    end
-end
-tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
-newλ = find_zero(tar,(λ[end-1],10.0),Bisection())
-if newλ >1.0
-    push!(λ,1.0)
-else
-    push!(λ,newλ)
-end
-newH(x,v) = (1-newλ)*U0(x) + newλ*U(x) + 1/2*norm(v)^2
+-gradient(logL,x0) - sum((-1 .+ 1 ./ (1 .+ el)) .* (y.*z),dims=1)[1,:]
 
-logW = hcat(logW,zeros(N))
-W = hcat(W,zeros(N))
-logW[:,t] = getW(X[t],V[t],newH,targetH)
-MAX = findmax(logW[:,t])[1]
-W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))  
-1/sum(W[:,end].^2)
+findmax(abs.(-gradient(logL,x0) - sum((-1 .+ 1 ./ (1 .+ el)) .* (y.*z),dims=1)[1,:]))
 
+@time logL2(x0,grad=true);
+@time gradient(logL,x0);
 
+v0 = randn(61)
+
+x,v,u0,u = ψ(x0,v0,2000,ϵ=0.2,U0=U0,U=U,λ=0.0);
+
+MH(x0,v0,2000,0.2,0.0,U0,U);
+using Distributions, NPZ, LinearAlgebra, Roots
+using ForwardDiff:gradient
+data = npzread("sonar.npy")
 function brent(f::Function, x0::Number, x1::Number, args::Tuple=();xtol::AbstractFloat=1e-7, ytol=2eps(Float64),maxiter::Integer=50)
     EPS = eps(Float64)
     y0 = f(x0,args...)
@@ -116,30 +82,168 @@ function brent(f::Function, x0::Number, x1::Number, args::Tuple=();xtol::Abstrac
     end
     error("Max iteration exceeded")
 end
-
-@time brent(tar,λ[end-1],10.0)
-
-@time newλ = find_zero(tar,(λ[end-1],1.65*λ[end-1]),Bisection())
-
-@time brent(tar,λ[end-1],2.0*λ[end-1])
-
-function bisect(f,a,b)
-    midpoint = (a+b)/2
-    left = f(a)
-    right = f(b)
-    while abs(f(midpoint)) > 1e-7
-        new = f(midpoint)
-        println(new)
-        if new*left > 0
-            a = midpoint
-            left = new
+y = data[:,1]; z = data[:,2:end]
+logL(x) = sum(-log.(1 .+ exp.(-y.* (z*x))))
+logν(x) = logpdf(Normal(0,20),x[1])+sum(logpdf.(Normal(0,5),x[2:end]))
+logγ(x) = logL(x)+logν(x)
+U(x) = -logγ(x); U0(x) = -logν(x); gradU(x) = gradient(U,x)
+H(x,v) = U(x) + 1/2*norm(v)^2
+Σ = Diagonal([[20.0^2];repeat([5.0^2],60)]);initDist = MultivariateNormal(zeros(61),Σ)
+function HMC(x0,N;L,ϵ,H,gradU)
+    D = length(x0)
+    X = zeros(N+1,D)
+    X[1,:] = x0
+    acc = 0
+    for n = 1:N
+        v0 = rand(Normal(0,1),D)
+        propx,propv = leapfrog(X[n,:],v0,n=L,ϵ=ϵ,gradU=gradU)
+        alpha = min(0,-H(X[n,:],v0)+H(propx,propv))
+        if log(rand()) < alpha
+            X[n+1,:] = propx
+            acc += 1
         else
-            b = midpoint
-            right = new
+            X[n+1,:] = X[n,:]
         end
-        midpoint = (a+b)/2
+        if rem(n,100) == 0
+            println("average acceptance prob = ",acc/n)
+        end
     end
-    return midpoint
+    return X
+end
+function leapfrog(x0,v0;n,ϵ,gradU)
+    D = length(x0)
+    xvec = zeros(n+1,D)
+    vvec = zeros(n+1,D)
+    xvec[1,:] = x0
+    vvec[1,:] = v0
+    for i = 1:n
+        tempv = vvec[i,:] .- ϵ/2*gradU(xvec[i,:])
+        xvec[i+1,:] = xvec[i,:] .+ ϵ*tempv
+        vvec[i+1,:] = tempv .- ϵ/2*gradU(xvec[i+1,:])
+    end
+    return xvec[end,:],vvec[end,:]
+end
+function ψ(x0,v0,n;ϵ,gradU)
+    D = length(x0)
+    xvec = zeros(n+1,D)
+    vvec = zeros(n+1,D)
+    xvec[1,:] = x0
+    vvec[1,:] = v0
+    for i = 1:n
+        tempv = vvec[i,:] .- ϵ/2*gradU(xvec[i,:])
+        xvec[i+1,:] = xvec[i,:] .+ ϵ*tempv
+        vvec[i+1,:] = tempv .- ϵ/2*gradU(xvec[i+1,:])
+    end
+    return xvec,vvec
+end
+function getH(x,v,H)
+    n,_ = size(x)
+    Hvec = zeros(n)
+    for i = 1:n
+        Hvec[i] = H(x[i,:],v[i,:])
+    end
+    return Hvec
+end 
+# Calculate the acceptance probability for each proposals on the trajectory
+function logα(xvec,vvec,H)
+    P,_ = size(xvec)
+    P -= 1
+    logαvec = zeros(P)
+    for n = 1:P
+        logαvec[n] = min(0,-H(xvec[n+1,:],vvec[n+1,:])+H(xvec[1,:],vvec[1,:]))
+    end
+    return logαvec
+end 
+function MH(x0,v0,n,ϵ,gradU,H)
+    D = length(x0)
+    xvec,vvec = ψ(x0,v0,n,ϵ=ϵ,gradU=gradU)
+    αvec = logα(xvec,vvec,H)
+    x = zeros(n,D); v = zeros(n,D)
+    for i = 1:n
+        if log(rand()) < αvec[i]
+            x[i,:] = xvec[i+1,:]
+            v[i,:] = vvec[i+1,:]
+        else
+            x[i,:] = xvec[1,:]
+            v[i,:] = vvec[1,:]
+        end
+    end
+    return x,v
 end
 
-@time bisect(tar,λ[end-1],2*λ[end-1])
+function ESS(x,v,lambda,prevH,U0,U)
+    N,_ = size(x)
+    w = zeros(N)
+    newH(x,v) = (1-lambda)*U0(x) + lambda*U(x) + 1/2*norm(v)^2
+    for n = 1:N
+        w[n] = -newH(x[n,:],v[n,:])+prevH(x[n,:],v[n,:])
+    end
+    MAX = findmax(w)[1]
+    W = exp.(w.-MAX)/sum(exp.(w.-MAX))
+    return 1/sum(W.^2)
+end
+function getW(x,v,H1,H0)
+    N,_ = size(x)
+    w = zeros(N)
+    for n = 1:N
+        w[n] = -H1(x[n,:],v[n,:])+H0(x[n,:],v[n,:])
+    end
+    return w
+end
+
+function SMC(N,M,U0,U,D,α,ϵ,initDist)
+    # Define array to store the potential energy functions at each SMC step
+    X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
+    V = Array{Matrix,1}(undef,0);push!(V,zeros(N,D))
+    λ = zeros(1)
+    logW = zeros(N,1)
+    W = zeros(N,1)
+    P = div(N,M)
+    for i = 1:N
+        X[1][i,:] = rand(initDist)
+        V[1][i,:] = randn(D)
+        logW[i,1] = -U0(X[1][i,:]) - 1/2*norm(V[1][i,:])^2
+    end
+    MAX = findmax(logW[:,1])[1]
+    W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
+    t = 1
+    while λ[end] < 1.0
+        t +=1 # move to the next step
+        push!(X,zeros(N,D));push!(V,zeros(N,D))
+        A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...) # resample "starting points"
+        targetU(x) = (1-λ[t-1])*U0(x) + λ[t-1]*U(x)
+        targetgradU(x) = gradient(targetU,x)
+        targetH(x,v) = targetU(x)+1/2*norm(v)^2
+        for n = 1:M
+            x0 = X[t-1][A[n],:]
+            v0 = randn(D)
+            newx,newv = MH(x0,v0,P,ϵ,targetgradU,targetH)
+            for i = 1:P
+                X[t][(n-1)*P+i,:] = newx[i,:]
+                V[t][(n-1)*P+i,:] = newv[i,:]
+            end
+        end
+        tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
+        #newλ = find_zero(tar,(λ[end],10.0),Bisection())
+        b = λ[end] + 0.01
+        a = λ[end]
+        while tar(b)*tar(a) > 0.0
+            a = b
+            b += 0.01
+        end
+        #newλ = brent(tar,a,b)
+        newλ = find_zero(tar,(a,b),Bisection())
+        if newλ >1.0
+            push!(λ,1.0)
+        else
+            push!(λ,newλ)
+        end
+        newH(x,v) = (1-λ[end])*U0(x) + λ[end]*U(x) + 1/2*norm(v)^2
+        logW = hcat(logW,zeros(N))
+        W = hcat(W,zeros(N))
+        logW[:,t] = getW(X[t],V[t],newH,targetH)
+        MAX = findmax(logW[:,t])[1]
+        W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))  
+    end
+    return (X=X,λ=λ,W=W,logW=logW)
+end
