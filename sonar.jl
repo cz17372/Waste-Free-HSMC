@@ -194,7 +194,6 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
         targetU(x) = (1-λ[t-1])*U0(x) + λ[t-1]*U(x)
         targetgradU(x) = gradient(targetU,x)
         targetH(x,v) = targetU(x)+1/2*norm(v)^2
-        println("Running HMC...")
         for n = 1:M
             x0 = X[t-1][A[n],:]
             v0 = randn(D)
@@ -204,22 +203,16 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
                 V[t][(n-1)*P+i,:] = newv[i,:]
             end
         end
-        println("finding new λ...")
         tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
         #newλ = find_zero(tar,(λ[end],10.0),Bisection())
-        if λ[end] == 0.0
-            b = 0.001
-        else
-            b = 1.2*λ[end]
-        end
+        b = λ[end] + 0.01
         a = λ[end]
-        while tar(b) > 0.0
+        while tar(b)*tar(a) > 0.0
             a = b
-            b += 1/5*b
+            b += 0.01
         end
-        println("start optimisation...")
-        newλ = brent(tar,a,b)
-        println("the new λ is",newλ)
+        #newλ = brent(tar,a,b)
+        newλ = find_zero(tar,(a,b),Bisection())
         if newλ >1.0
             push!(λ,1.0)
         else
@@ -234,9 +227,3 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
     end
     return (X=X,λ=λ,W=W,logW=logW)
 end
-
-R = SMC(10000,100,U0,U,61,0.5,0.2,initDist)
-
-sum(log.(mean(exp.(R.logW[:,2:end]),dims=1)))
-
-sum(R.W[:,end].*mean(R.X[end],dims=2))
