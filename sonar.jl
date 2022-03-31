@@ -1,4 +1,4 @@
-using Distributions, NPZ, Plots, StatsPlots, LinearAlgebra, ProgressMeter, JLD2, Roots
+using Distributions, NPZ, LinearAlgebra, Roots
 using ForwardDiff:gradient
 data = npzread("sonar.npy")
 function brent(f::Function, x0::Number, x1::Number, args::Tuple=();xtol::AbstractFloat=1e-7, ytol=2eps(Float64),maxiter::Integer=50)

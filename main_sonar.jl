@@ -1,4 +1,4 @@
-using Distributed, SharedArrays, Measures, JLD2
+using Distributed, SharedArrays, JLD2
 NumWorkers = readline("Get Number of Workers")
 NumWorkers = parse(Int64,NumWorkers)
 addprocs(NumWorkers)
