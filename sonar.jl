@@ -1,4 +1,4 @@
-using Distributions, NPZ, LinearAlgebra, Roots
+using Distributions, NPZ, LinearAlgebra, Roots, ProgressMeter
 using ForwardDiff:gradient
 data = npzread("sonar.npy");y = data[:,1]; z = data[:,2:end]
 function logL(x;grad=false)
@@ -115,12 +115,12 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
         end
         tar(l) = ESS(U0VEC,UVEC,λ[end],l) - α*N
         newλ = find_zero(tar,(λ[end],10.0),Bisection())
-        println(newλ)
         if newλ >1.0
             push!(λ,1.0)
         else
             push!(λ,newλ)
         end
+        println("The new temperature is ",λ[end])
         logW = hcat(logW,zeros(N))
         W = hcat(W,zeros(N))
         logW[:,t] = (λ[t]-λ[t-1])*U0VEC .- (λ[t]-λ[t-1])*UVEC

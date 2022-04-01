@@ -247,3 +247,7 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
     end
     return (X=X,λ=λ,W=W,logW=logW)
 end
+
+
+include("sonar.jl")
+R = SMC(200000,100,U0,U,61,0.5,0.2,initDist)
