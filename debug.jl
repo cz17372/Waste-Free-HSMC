@@ -1,32 +1,94 @@
-using Distributions, NPZ, LinearAlgebra, Roots, ProgressMeter
+
+@time R = SMC(200000,100,U0,U,61,0.5,0.2,initDist);
+sum(log.(mean(exp.(R.logW[:,2:end]),dims=1)))
+
+lvec = y .* (z*x0)
+el   = exp.(-lvec)
+sum((-1 .+ 1 ./ (1 .+ el)) .* (y.*z),dims=1)[1,:]
+
+-gradient(logL,x0) - sum((-1 .+ 1 ./ (1 .+ el)) .* (y.*z),dims=1)[1,:]
+
+findmax(abs.(-gradient(logL,x0) - sum((-1 .+ 1 ./ (1 .+ el)) .* (y.*z),dims=1)[1,:]))
+
+@time logL2(x0,grad=true);
+@time gradient(logL,x0);
+
+v0 = randn(61)
+
+x,v,u0,u = ψ(x0,v0,2000,ϵ=0.2,U0=U0,U=U,λ=0.0);
+
+MH(x0,v0,2000,0.2,0.0,U0,U);
+using Distributions, NPZ, LinearAlgebra, Roots
 using ForwardDiff:gradient
-data = npzread("sonar.npy");y = data[:,1]; z = data[:,2:end]
-function logL(x;grad=false)
-    elvec = exp.(-y .* (z*x))
-    llk = sum(-log.(1 .+ elvec))
-    if grad
-        g = -sum((-1 .+ 1 ./ (1 .+ elvec)) .* (y.*z),dims=1)[1,:]
-        return (llk,g)
-    else
-        return llk
+data = npzread("sonar.npy")
+function brent(f::Function, x0::Number, x1::Number, args::Tuple=();xtol::AbstractFloat=1e-7, ytol=2eps(Float64),maxiter::Integer=50)
+    EPS = eps(Float64)
+    y0 = f(x0,args...)
+    y1 = f(x1,args...)
+    if abs(y0) < abs(y1)
+        # Swap lower and upper bounds.
+        x0, x1 = x1, x0
+        y0, y1 = y1, y0
     end
+    x2 = x0
+    y2 = y0
+    x3 = x2
+    bisection = true
+    for _ in 1:maxiter
+        # x-tolerance.
+        if abs(x1-x0) < xtol
+            return x1
+        end
+
+        # Use inverse quadratic interpolation if f(x0)!=f(x1)!=f(x2)
+        # and linear interpolation (secant method) otherwise.
+        if abs(y0-y2) > ytol && abs(y1-y2) > ytol
+            x = x0*y1*y2/((y0-y1)*(y0-y2)) + x1*y0*y2/((y1-y0)*(y1-y2)) + x2*y0*y1/((y2-y0)*(y2-y1))
+        else
+            x = x1 - y1 * (x1-x0)/(y1-y0)
+        end
+
+        # Use bisection method if satisfies the conditions.
+        delta = abs(2EPS*abs(x1))
+        min1 = abs(x-x1)
+        min2 = abs(x1-x2)
+        min3 = abs(x2-x3)
+        if (x < (3x0+x1)/4 && x > x1) || (bisection && min1 >= min2/2) || (!bisection && min1 >= min3/2) || (bisection && min2 < delta) || (!bisection && min3 < delta)
+            x = (x0+x1)/2
+            bisection = true
+        else
+            bisection = false
+        end
+
+        y = f(x,args...)
+        # y-tolerance.
+        if abs(y) < ytol
+            return x
+        end
+        x3 = x2
+        x2 = x1
+        if sign(y0) != sign(y)
+            x1 = x
+            y1 = y
+        else
+            x0 = x
+            y0 = y
+        end
+        if abs(y0) < abs(y1)
+        # Swap lower and upper bounds.
+            x0, x1 = x1, x0
+            y0, y1 = y1, y0
+        end
+    end
+    error("Max iteration exceeded")
 end
+y = data[:,1]; z = data[:,2:end]
+logL(x) = sum(-log.(1 .+ exp.(-y.* (z*x))))
 logν(x) = logpdf(Normal(0,20),x[1])+sum(logpdf.(Normal(0,5),x[2:end]))
 logγ(x) = logL(x)+logν(x)
-function U(x;grad=false)
-    if grad
-        llk,g1 = logL(x,grad=grad)
-        u = -logν(x)-llk
-        g2 = -gradient(logν,x) .- g1
-        return (u,g2)
-    else
-        llk = logL(x,grad=grad)
-        return -logν(x) - llk
-    end
-end
-U0(x) = -logν(x); gradU0(x) = gradient(U0,x);
-Σ = Diagonal([[20.0^2];repeat([5.0^2],60)]);
-initDist = MultivariateNormal(zeros(61),Σ)
+U(x) = -logγ(x); U0(x) = -logν(x); gradU(x) = gradient(U,x)
+H(x,v) = U(x) + 1/2*norm(v)^2
+Σ = Diagonal([[20.0^2];repeat([5.0^2],60)]);initDist = MultivariateNormal(zeros(61),Σ)
 function HMC(x0,N;L,ϵ,H,gradU)
     D = length(x0)
     X = zeros(N+1,D)
@@ -61,6 +123,135 @@ function leapfrog(x0,v0;n,ϵ,gradU)
     end
     return xvec[end,:],vvec[end,:]
 end
+function ψ(x0,v0,n;ϵ,gradU)
+    D = length(x0)
+    xvec = zeros(n+1,D)
+    vvec = zeros(n+1,D)
+    xvec[1,:] = x0
+    vvec[1,:] = v0
+    for i = 1:n
+        tempv = vvec[i,:] .- ϵ/2*gradU(xvec[i,:])
+        xvec[i+1,:] = xvec[i,:] .+ ϵ*tempv
+        vvec[i+1,:] = tempv .- ϵ/2*gradU(xvec[i+1,:])
+    end
+    return xvec,vvec
+end
+function getH(x,v,H)
+    n,_ = size(x)
+    Hvec = zeros(n)
+    for i = 1:n
+        Hvec[i] = H(x[i,:],v[i,:])
+    end
+    return Hvec
+end 
+# Calculate the acceptance probability for each proposals on the trajectory
+function logα(xvec,vvec,H)
+    P,_ = size(xvec)
+    P -= 1
+    logαvec = zeros(P)
+    for n = 1:P
+        logαvec[n] = min(0,-H(xvec[n+1,:],vvec[n+1,:])+H(xvec[1,:],vvec[1,:]))
+    end
+    return logαvec
+end 
+function MH(x0,v0,n,ϵ,gradU,H)
+    D = length(x0)
+    xvec,vvec = ψ(x0,v0,n,ϵ=ϵ,gradU=gradU)
+    αvec = logα(xvec,vvec,H)
+    x = zeros(n,D); v = zeros(n,D)
+    for i = 1:n
+        if log(rand()) < αvec[i]
+            x[i,:] = xvec[i+1,:]
+            v[i,:] = vvec[i+1,:]
+        else
+            x[i,:] = xvec[1,:]
+            v[i,:] = vvec[1,:]
+        end
+    end
+    return x,v
+end
+
+function ESS(x,v,lambda,prevH,U0,U)
+    N,_ = size(x)
+    w = zeros(N)
+    newH(x,v) = (1-lambda)*U0(x) + lambda*U(x) + 1/2*norm(v)^2
+    for n = 1:N
+        w[n] = -newH(x[n,:],v[n,:])+prevH(x[n,:],v[n,:])
+    end
+    MAX = findmax(w)[1]
+    W = exp.(w.-MAX)/sum(exp.(w.-MAX))
+    return 1/sum(W.^2)
+end
+function getW(x,v,H1,H0)
+    N,_ = size(x)
+    w = zeros(N)
+    for n = 1:N
+        w[n] = -H1(x[n,:],v[n,:])+H0(x[n,:],v[n,:])
+    end
+    return w
+end
+
+function SMC(N,M,U0,U,D,α,ϵ,initDist)
+    # Define array to store the potential energy functions at each SMC step
+    X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
+    V = Array{Matrix,1}(undef,0);push!(V,zeros(N,D))
+    λ = zeros(1)
+    logW = zeros(N,1)
+    W = zeros(N,1)
+    P = div(N,M)
+    for i = 1:N
+        X[1][i,:] = rand(initDist)
+        V[1][i,:] = randn(D)
+        logW[i,1] = -U0(X[1][i,:]) - 1/2*norm(V[1][i,:])^2
+    end
+    MAX = findmax(logW[:,1])[1]
+    W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
+    t = 1
+    while λ[end] < 1.0
+        t +=1 # move to the next step
+        push!(X,zeros(N,D));push!(V,zeros(N,D))
+        A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...) # resample "starting points"
+        targetU(x) = (1-λ[t-1])*U0(x) + λ[t-1]*U(x)
+        targetgradU(x) = gradient(targetU,x)
+        targetH(x,v) = targetU(x)+1/2*norm(v)^2
+        for n = 1:M
+            x0 = X[t-1][A[n],:]
+            v0 = randn(D)
+            newx,newv = MH(x0,v0,P,ϵ,targetgradU,targetH)
+            for i = 1:P
+                X[t][(n-1)*P+i,:] = newx[i,:]
+                V[t][(n-1)*P+i,:] = newv[i,:]
+            end
+        end
+        tar(λ) = ESS(X[t],V[t],λ,targetH,U0,U) - α*N
+        #newλ = find_zero(tar,(λ[end],10.0),Bisection())
+        b = λ[end] + 0.01
+        a = λ[end]
+        while tar(b)*tar(a) > 0.0
+            a = b
+            b += 0.01
+        end
+        #newλ = brent(tar,a,b)
+        newλ = find_zero(tar,(a,b),Bisection())
+        if newλ >1.0
+            push!(λ,1.0)
+        else
+            push!(λ,newλ)
+        end
+        newH(x,v) = (1-λ[end])*U0(x) + λ[end]*U(x) + 1/2*norm(v)^2
+        logW = hcat(logW,zeros(N))
+        W = hcat(W,zeros(N))
+        logW[:,t] = getW(X[t],V[t],newH,targetH)
+        MAX = findmax(logW[:,t])[1]
+        W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))  
+    end
+    return (X=X,λ=λ,W=W,logW=logW)
+end
+
+
+include("sonar.jl")
+R = SMC(200000,100,U0,U,61,0.5,0.2,initDist)
+
 function split_legs(P,nlegs)
     if rem(P,nlegs) == 0
         leg_length = repeat([div(P,nlegs)],nlegs)
@@ -69,66 +260,4 @@ function split_legs(P,nlegs)
     end
     return leg_length
 end
-
-N = 10000
-M = 100
-D = 61
-α = 0.5
-ϵ = 0.2
-nlegs = 10
-
-P = div(N,M)
-X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
-λ = zeros(1)
-U0VEC = zeros(N)
-UVEC  = zeros(N)
-logW = zeros(N,1)
-W = zeros(N,1)
-for i = 1:N
-    X[1][i,:] = rand(initDist)
-    v = randn(D)
-    logW[i,1] = -U0(X[1][i,:]) 
-end
-MAX = findmax(logW[:,1])[1]
-W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
-t = 1
-t +=1 # move to the next step
-push!(X,zeros(N,D));
-A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...)
-
-for n = 1:M
-    newx = zeros(0,D)
-    leg_length = split_legs(P,nlegs)
-    u0vec = zeros(0)
-    uvec  = zeros(0)
-    for j = 1:nlegs
-        x0 = X[t-1][A[n],:]
-        v0 = randn(D)
-        tempx,tempv,tempu0,tempu = MH(x0,v0,leg_length[j],ϵ,λ[end],U0,U)
-        newx = vcat(newx,tempx)
-        u0vec = vcat(u0vec,tempu0)
-        uvec  = vcat(uvec,tempu)
-    end
-    X[t][((n-1)*P+1):(n*P),:] = newx
-    U0VEC[((n-1)*P+1):(n*P)]  = u0vec
-    UVEC[((n-1)*P+1):(n*P)]   = uvec
-end
-tar(l) = ESS(U0VEC,UVEC,λ[end],l) - α*N
-a = λ[end]
-b = λ[end]+0.1
-       
-while tar(a)*tar(b) >= 0
-    b += 0.1
-end
-newλ = find_zero(tar,(a,b),Bisection())
-if newλ >1.0
-    push!(λ,1.0)
-else
-    push!(λ,newλ)
-end
-logW = hcat(logW,zeros(N))
-W = hcat(W,zeros(N))
-logW[:,t] = (λ[t]-λ[t-1])*U0VEC .- (λ[t]-λ[t-1])*UVEC
-MAX = findmax(logW[:,t])[1]
-W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
 
