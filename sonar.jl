@@ -83,16 +83,9 @@ function ESS(U0Vec,UVec,lambda0,lambda1)
     W = exp.(w.-MAX)/sum(exp.(w.-MAX))
     return 1/sum(W.^2)
 end
-function split_legs(P,nlegs)
-    if rem(P,nlegs) == 0
-        leg_length = repeat([div(P,nlegs)],nlegs)
-    else
-        leg_length = [repeat([div(P,nlegs)],nlegs-1);[P-(div(P,nlegs))*(nlegs-1)]]
-    end
-    return leg_length
-end
-function SMC(N,M,U0,U,D,α,ϵ,initDist,nlegs=1)
+function SMC(N,M,U0,U,D,α,ϵ,initDist)
     X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
+    V = Array{Matrix,1}(undef,0);push!(V,zeros(N,D))
     λ = zeros(1)
     U0VEC = zeros(N)
     UVEC  = zeros(N)
@@ -101,36 +94,29 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist,nlegs=1)
     P = div(N,M)
     for i = 1:N
         X[1][i,:] = rand(initDist)
-        v = randn(D)
-        logW[i,1] = -U0(X[1][i,:]) - 1/2*norm(v)^2
+        V[1][i,:] = randn(D)
+        logW[i,1] = -U0(X[1][i,:]) - 1/2*norm(V[1][i,:])^2
     end
     MAX = findmax(logW[:,1])[1]
     W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
     t = 1
     while λ[end] < 1.0
         t +=1 # move to the next step
-        push!(X,zeros(N,D));
+        push!(X,zeros(N,D));push!(V,zeros(N,D))
         A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...)
         for n = 1:M
-            newx = zeros(0,D)
-            leg_length = split_legs(P,nlegs)
-            u0vec = zeros(0)
-            uvec  = zeros(0)
-            for j = 1:nlegs
-                x0 = X[t-1][A[n],:]
-                v0 = randn(D)
-                tempx,tempv,tempu0,tempu = MH(x0,v0,leg_length[j],ϵ,λ[end],U0,U)
-                newx = vcat(newx,tempx)
-                u0vec = vcat(u0vec,tempu0)
-                uvec  = vcat(uvec,tempu)
-            end
+            x0 = X[t-1][A[n],:]
+            v0 = randn(D)
+            newx,newv,u0vec,uvec = MH(x0,v0,P,ϵ,λ[end],U0,U)
             X[t][((n-1)*P+1):(n*P),:] = newx
+            V[t][((n-1)*P+1):(n*P),:] = newv
             U0VEC[((n-1)*P+1):(n*P)]  = u0vec
             UVEC[((n-1)*P+1):(n*P)]   = uvec
         end
         tar(l) = ESS(U0VEC,UVEC,λ[end],l) - α*N
         a = λ[end]
         b = λ[end]+0.1
+       
         while tar(a)*tar(b) >= 0
             b += 0.1
         end
