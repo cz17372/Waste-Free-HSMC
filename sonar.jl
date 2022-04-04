@@ -114,13 +114,20 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist)
             UVEC[((n-1)*P+1):(n*P)]   = uvec
         end
         tar(l) = ESS(U0VEC,UVEC,λ[end],l) - α*N
-        newλ = find_zero(tar,(λ[end],10.0),Bisection())
+        a = λ[end]
+        b = λ[end]+0.1
+       
+        while tar(a)*tar(b) >= 0
+            b += 0.1
+        end
+        println(tar(a),"  ",tar(b))
+        newλ = find_zero(tar,(a,b),Bisection())
         if newλ >1.0
             push!(λ,1.0)
         else
             push!(λ,newλ)
         end
-        println("The new temperature is ",λ[end])
+        #println("The new temperature is ",λ[end])
         logW = hcat(logW,zeros(N))
         W = hcat(W,zeros(N))
         logW[:,t] = (λ[t]-λ[t-1])*U0VEC .- (λ[t]-λ[t-1])*UVEC

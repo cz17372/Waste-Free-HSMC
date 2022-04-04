@@ -251,3 +251,13 @@ end
 
 include("sonar.jl")
 R = SMC(200000,100,U0,U,61,0.5,0.2,initDist)
+
+function split_legs(P,nlegs)
+    if rem(P,nlegs) == 0
+        leg_length = repeat([div(P,nlegs)],nlegs)
+    else
+        leg_length = [repeat([div(P,nlegs)],nlegs-1);[P-(div(P,nlegs))*(nlegs-1)]]
+    end
+    return leg_length
+end
+
