@@ -1,4 +1,4 @@
-using Distributions, NPZ, LinearAlgebra, Roots, ProgressMeter
+using Distributions, NPZ, LinearAlgebra, Roots, ProgressMeter, StatsBase
 using ForwardDiff:gradient
 data = npzread("sonar.npy");y = data[:,1]; z = data[:,2:end]
 function logL(x;grad=false)
@@ -24,42 +24,69 @@ function U(x;grad=false)
         return -logν(x) - llk
     end
 end
-U0(x) = -logν(x); gradU0(x) = gradient(U0,x);
+function U0(x;grad=false)
+    if grad
+        llk = -logν(x)
+        g = -gradient(logν,x)
+        return (llk,g)
+    else
+        return -logν(x)
+    end
+end
 Σ = Diagonal([[20.0^2];repeat([5.0^2],60)]);
 initDist = MultivariateNormal(zeros(61),Σ)
-function HMC(x0,N;L,ϵ,H,gradU)
-    D = length(x0)
-    X = zeros(N+1,D)
-    X[1,:] = x0
-    acc = 0
-    for n = 1:N
-        v0 = rand(Normal(0,1),D)
-        propx,propv = leapfrog(X[n,:],v0,n=L,ϵ=ϵ,gradU=gradU)
-        alpha = min(0,-H(X[n,:],v0)+H(propx,propv))
-        if log(rand()) < alpha
-            X[n+1,:] = propx
-            acc += 1
-        else
-            X[n+1,:] = X[n,:]
-        end
-        if rem(n,100) == 0
-            println("average acceptance prob = ",acc/n)
-        end
+function logα(vvec,U0VEC,UVEC,λ)
+    P,_ = size(vvec)
+    P -= 1
+    logαvec = zeros(P)
+    for n = 1:P
+        logαvec[n] = min(0,-(1-λ)*U0VEC[n+1]-λ*UVEC[n+1] - 1/2*norm(vvec[n+1,:])^2 + (1-λ)*U0VEC[1] + λ*UVEC[1] + 1/2*norm(vvec[1,:])^2)
     end
-    return X
+    return logαvec
 end
-function leapfrog(x0,v0;n,ϵ,gradU)
+function ψ(x0,v0,n;ϵ,U0,U,λ)
     D = length(x0)
     xvec = zeros(n+1,D)
     vvec = zeros(n+1,D)
     xvec[1,:] = x0
     vvec[1,:] = v0
+    U0VEC = zeros(n+1)
+    UVEC  = zeros(n+1)
+    U0VEC[1],grad0 = U0(x0,grad=true)
+    UVEC[1],grad1  = U(x0,grad=true)
     for i = 1:n
-        tempv = vvec[i,:] .- ϵ/2*gradU(xvec[i,:])
+        tempv = vvec[i,:] .- ϵ/2*((1-λ)*grad0+λ*grad1)
         xvec[i+1,:] = xvec[i,:] .+ ϵ*tempv
-        vvec[i+1,:] = tempv .- ϵ/2*gradU(xvec[i+1,:])
+        U0VEC[i+1],grad0 = U0(xvec[i+1,:],grad=true)
+        UVEC[i+1],grad1  = U(xvec[i+1,:],grad=true)
+        vvec[i+1,:] = tempv .- ϵ/2*((1-λ)*grad0+λ*grad1)
     end
-    return xvec[end,:],vvec[end,:]
+    return xvec,vvec,U0VEC,UVEC
+end
+function MH(x0,v0,n,ϵ,λ,U0,U)
+    D = length(x0)
+    xvec,vvec,u0vec,uvec = ψ(x0,v0,n,ϵ=ϵ,U0=U0,U=U,λ=λ)
+    αvec = logα(vvec,u0vec,uvec,λ)
+    x = zeros(n,D);
+    u = zeros(n); u0 = zeros(n);
+    for i = 1:n
+        if log(rand()) < αvec[i]
+            x[i,:] = xvec[i+1,:]
+            u0[i] = u0vec[i+1]
+            u[i]  = uvec[i+1]
+        else
+            x[i,:] = xvec[1,:]
+            u0[i]  = u0vec[1]
+            u[i]   = uvec[1]
+        end
+    end
+    return x,u0,u
+end
+function ESS(U0Vec,UVec,lambda0,lambda1)
+    w = (lambda1-lambda0)*U0Vec .- (lambda1-lambda0)*UVec
+    MAX = findmax(w)[1]
+    W = exp.(w.-MAX)/sum(exp.(w.-MAX))
+    return 1/sum(W.^2)
 end
 function split_legs(P,nlegs)
     if rem(P,nlegs) == 0
@@ -69,59 +96,59 @@ function split_legs(P,nlegs)
     end
     return leg_length
 end
-include("sonar.jl")
-N = 10000
-M = 100
-D = 61
-α = 0.5
-ϵ = 0.2
-nlegs = 10
-P = div(N,M)
-X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
-λ = zeros(1)
-U0VEC = zeros(N)
-UVEC  = zeros(N)
-logW = zeros(N,1)
-W = zeros(N,1)
-for i = 1:N
-    X[1][i,:] = rand(initDist)
-    v = randn(D)
-    logW[i,1] = -U0(X[1][i,:]) 
-end
-MAX = findmax(logW[:,1])[1]
-W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
-t = 1
-t +=1 # move to the next step
-push!(X,zeros(N,D));
-A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...)
-
-@time for n = 1:M
-    println(n)
-    s = 0
-    leg_length=split_legs(P,nlegs)
-    x0 = X[t-1][A[n],:]
-    for j = 1:nlegs
-        v0 = randn(D)
-        X[t][((n-1)*P+s+1):((n-1)*P+s+leg_length[j]),:],U0VEC[((n-1)*P+s+1):((n-1)*P+s+leg_length[j])],UVEC[((n-1)*P+s+1):((n-1)*P+s+leg_length[j])] = MH(x0,v0,leg_length[j],ϵ,λ[end],U0,U)
-        s += leg_length[j]
+function SMC(N,M,U0,U,D,α,ϵ,initDist,nlegs=1)
+    X = Array{Matrix,1}(undef,0);push!(X,zeros(N,D))
+    λ = zeros(1)
+    U0VEC = zeros(N)
+    UVEC  = zeros(N)
+    logW = zeros(N,1)
+    W = zeros(N,1)
+    P = div(N,M)
+    for i = 1:N
+        X[1][i,:] = rand(initDist)
+        v = randn(D)
+        logW[i,1] = -U0(X[1][i,:]) - 1/2*norm(v)^2
     end
+    MAX = findmax(logW[:,1])[1]
+    W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
+    t = 1
+    while λ[end] < 1.0
+        t +=1 # move to the next step
+        push!(X,zeros(N,D));
+        A = vcat(fill.(1:N,rand(Multinomial(M,W[:,t-1])))...)
+        for n = 1:M
+            x0 = X[t-1][A[n],:]
+            s = 0
+            leg_length=split_legs(P,nlegs)
+            v0 = randn(D)
+            X[t][((n-1)*P+s+1):((n-1)*P+s+leg_length[1]),:],U0VEC[((n-1)*P+s+1):((n-1)*P+s+leg_length[1])],UVEC[((n-1)*P+s+1):((n-1)*P+s+leg_length[1])] = MH(x0,v0,leg_length[1],ϵ,λ[end],U0,U)
+            s += leg_length[1]
+            for j = 2:nlegs
+                x0 = X[t][s,:]
+                v0 = randn(D)
+                X[t][((n-1)*P+s+1):((n-1)*P+s+leg_length[j]),:],U0VEC[((n-1)*P+s+1):((n-1)*P+s+leg_length[j])],UVEC[((n-1)*P+s+1):((n-1)*P+s+leg_length[j])] = MH(x0,v0,leg_length[j],ϵ,λ[end],U0,U)
+                s += leg_length[j]
+            end
+        end
+        tar(l) = ESS(U0VEC,UVEC,λ[end],l) - α*N
+        a = λ[end]
+        b = λ[end]+0.1
+        while tar(a)*tar(b) >= 0
+            b += 0.1
+        end
+        #println(tar(a),"  ",tar(b))
+        newλ = find_zero(tar,(a,b),Bisection())
+        if newλ >1.0
+            push!(λ,1.0)
+        else
+            push!(λ,newλ)
+        end
+        #println("The new temperature is ",λ[end])
+        logW = hcat(logW,zeros(N))
+        W = hcat(W,zeros(N))
+        logW[:,t] = (λ[t]-λ[t-1])*U0VEC .- (λ[t]-λ[t-1])*UVEC
+        MAX = findmax(logW[:,t])[1]
+        W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
+    end
+    return (X=X,λ=λ,W=W,logW=logW)
 end
-tar(l) = ESS(U0VEC,UVEC,λ[end],l) - α*N
-a = λ[end]
-b = λ[end]+0.1
-       
-while tar(a)*tar(b) >= 0
-    b += 0.1
-end
-newλ = find_zero(tar,(a,b),Bisection())
-if newλ >1.0
-    push!(λ,1.0)
-else
-    push!(λ,newλ)
-end
-logW = hcat(logW,zeros(N))
-W = hcat(W,zeros(N))
-logW[:,t] = (λ[t]-λ[t-1])*U0VEC .- (λ[t]-λ[t-1])*UVEC
-MAX = findmax(logW[:,t])[1]
-W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
-
