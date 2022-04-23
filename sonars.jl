@@ -1,4 +1,4 @@
-using Distributions, NPZ, LinearAlgebra, Roots, ProgressMeter
+using Distributions, NPZ, LinearAlgebra, Roots, ProgressMeter|
 using ForwardDiff:gradient
 data = npzread("sonar.npy");y = data[:,1]; z = data[:,2:end]
 function logL(x;grad=false)
@@ -65,15 +65,18 @@ function ψ(x0,v0,n;ϵ,U0,U,λ)
 end
 function MH(x0,v0,n,ϵ,λ,U0,U)
     D = length(x0)
-    xvec,vvec,u0vec,uvec = ψ(x0,v0,n,ϵ=ϵ,U0=U0,U=U,λ=λ)
+    xvec,vvec,u0vec,uvec = ψ(x0,v0,n-1,ϵ=ϵ,U0=U0,U=U,λ=λ)
     αvec = logα(vvec,u0vec,uvec,λ)
     x = zeros(n,D);
     u = zeros(n); u0 = zeros(n);
-    for i = 1:n
-        if log(rand()) < αvec[i]
-            x[i,:] = xvec[i+1,:]
-            u0[i] = u0vec[i+1]
-            u[i]  = uvec[i+1]
+    x[1,:] = xvec[1,:]
+    u[1] = uvec[1]
+    u0[1]= u0vec[1]
+    for i = 2:n
+        if log(rand()) < αvec[i-1]
+            x[i,:] = xvec[i,:]
+            u0[i] = u0vec[i]
+            u[i]  = uvec[i]
         else
             x[i,:] = xvec[1,:]
             u0[i]  = u0vec[1]
@@ -107,7 +110,7 @@ function SMC(N,M,U0,U,D,α,ϵ,initDist,nlegs=1)
     for i = 1:N
         X[1][i,:] = rand(initDist)
         v = randn(D)
-        logW[i,1] = -U0(X[1][i,:]) - 1/2*norm(v)^2
+        logW[i,1] = 0.0
     end
     MAX = findmax(logW[:,1])[1]
     W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
