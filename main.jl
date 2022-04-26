@@ -1,7 +1,7 @@
 using Distributed, SharedArrays,DataFrames,CSV
 println("Enter the number of workers...")
 NWorker = readline()
-NWorker = parse(Intt64,NWorker)
+NWorker = parse(Int64,NWorker)
 addprocs(NWorker)
 @everywhere include("Models/sonar.jl")
 @everywhere include("src/WasteFree.jl")
