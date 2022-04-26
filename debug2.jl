@@ -174,7 +174,8 @@ function getW(log_weights)
 end
 function look_for_next_lambda(x,v,u0,u,ke,prevλ,α;method)
     P,_,M = size(x)
-    f(lambda) = ESS(get_weights(x,v,u0,u,ke,prevλ,lambda,method=method)) - α*M*P
+    maxESS = ESS(get_weights(x,v,u0,u,ke,prevλ,prevλ,method=method))
+    f(lambda) = ESS(get_weights(x,v,u0,u,ke,prevλ,lambda,method=method)) - α*maxESS
     a = prevλ
     b = prevλ+0.1
     while f(a)*f(b) >= 0

@@ -34,7 +34,6 @@ function run_exp(N,M,ϵ,α,model,mass_mat;silence=true)
         Time_Independent[n] = t.time - t.gctime
         NC_Independent[n] = sum(log.(mean(exp.(R.logW),dims=1)))
         MM_Independent[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
-        """
         if !silence
             println("Running WFSMC-Full for index $(n)")
         end
@@ -45,7 +44,6 @@ function run_exp(N,M,ϵ,α,model,mass_mat;silence=true)
         if !silence
             println("Running WFSMC-Chopin for index $(n)")
         end
-        """
         t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="chopin",mass_mat=mass_mat);
         Time_Chopin[n] = t.time - t.gctime
         NC_Chopin[n] = sum(log.(mean(exp.(R.logW),dims=1)))
