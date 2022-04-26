@@ -1,34 +1,86 @@
-using Distributed, SharedArrays, Measures, JLD2, Plots, StatsPlots, DataFrames
-addprocs(4)
-@everywhere using StatsBase, Statistics
-@everywhere include("src/WasteFree.jl")
+using Distributed, SharedArrays,DataFrames,CSV
+println("Enter the number of workers...")
+NWorker = readline()
+NWorker = parse(Intt64,NWorker)
+addprocs(NWorker)
 @everywhere include("Models/sonar.jl")
-NC = SharedArray{Float64}(100)
-E  = SharedArray{Float64}(100)
-Time = SharedArray{Float64}(100)
-@distributed for i = 1:100
-    println("Start Simulation $(i)")
-    t = @timed R =  WasteFree.SMC(50000,100,model=sonar,ϵ=0.2,α=0.5,method="full");
-    Time[i] = t.time
-    NC[i] = sum(log.(mean(exp.(R.logW[:,2:end]),dims=1)))
-    E[i]  = sum(R.W[:,end].*mean(R.X[end],dims=2))
+@everywhere include("src/WasteFree.jl")
+@everywhere using Statistics, StatsBase
+function run_exp(N,M,ϵ,α,model;silence=true)
+    Time_Sequential = SharedArray{Float64}(100)
+    Time_Independent= SharedArray{Float64}(100)
+    Time_Full       = SharedArray{Float64}(100)
+    Time_Chopin     = SharedArray{Float64}(100)
+    NC_Sequential   = SharedArray{Float64}(100)
+    NC_Independent  = SharedArray{Float64}(100)
+    NC_Full         = SharedArray{Float64}(100)
+    NC_Chopin       = SharedArray{Float64}(100)
+    MM_Sequential   = SharedArray{Float64}(100)
+    MM_Independent  = SharedArray{Float64}(100) 
+    MM_Full         = SharedArray{Float64}(100)
+    MM_Chopin       = SharedArray{Float64}(100)
+    @sync @distributed for n = 1:100
+        if !silence
+            println("Running WFSMC-Sequential for index $(n)")
+        end
+        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="sequential");
+        Time_Sequential[n] = t.time
+        NC_Sequential[n] = sum(log.(mean(exp.(R.logW),dims=1)))
+        MM_Sequential[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
+        if !silence
+            println("Running WFSMC-Independent for index $(n)")
+        end
+        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="independent");
+        Time_Independent[n] = t.time
+        NC_Independent[n] = sum(log.(mean(exp.(R.logW),dims=1)))
+        MM_Independent[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
+        if !silence
+            println("Running WFSMC-Full for index $(n)")
+        end
+        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="full");
+        Time_Full[n] = t.time
+        NC_Full[n] = sum(log.(mean(exp.(R.logW),dims=1)))
+        MM_Full[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
+        if !silence
+            println("Running WFSMC-Chopin for index $(n)")
+        end
+        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="chopin");
+        Time_Chopin[n] = t.time
+        NC_Chopin[n] = sum(log.(mean(exp.(R.logW),dims=1)))
+        MM_Chopin[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
+    end
+    return DataFrame(Time_Sequential=Time_Sequential,Time_Independent=Time_Independent,Time_Full=Time_Full,Time_Chopin=Time_Chopin,NC_Sequential=NC_Sequential,NC_Independent=NC_Independent,NC_Full=NC_Full,NC_Chopin=NC_Chopin,MM_Sequential=MM_Sequential,MM_Independent=MM_Independent,MM_Full=MM_Full,MM_Chopin=MM_Chopin)
 end
-NC2 = SharedArray{Float64}(100)
-E2  = SharedArray{Float64}(100)
-Time2 = SharedArray{Float64}(100)
-@distributed for i = 1:100
-    println("Start Simulation $(i)")
-    t = @timed R =  WasteFree.SMC(50000,100,model=sonar,ϵ=0.2,α=0.5,method="chopin");
-    Time2[i] = t.time
-    NC2[i] = sum(log.(mean(exp.(R.logW[:,2:end]),dims=1)))
-    E2[i]  = sum(R.W[:,end].*mean(R.X[end],dims=2))
-end
-P1 = boxplot(NC,label="Hamiltonian",size=(400,800),margin=15pt,ylim=(-140,-110),framestyle=:box,color=:grey,ylabel="log Normalising Constants");
-P2 = boxplot(NC2,label="Metropolis-Hastings",size=(400,800),margin=15pt,ylim=(-140,-110),framestyle=:box,color=:darkolivegreen);
-plot(P1,P2,layout=(1,2),size=(800,800))
-P1 = boxplot(E,label="Hamiltonian",size=(400,800),margin=15pt,ylim=(0.36,0.48),framestyle=:box,color=:grey,ylabel="mean of marginals");
-P2 = boxplot(E2,label="Metropolis-Hastings",size=(400,800),margin=15pt,ylim=(0.36,0.48),framestyle=:box,color=:darkolivegreen);
-plot(P1,P2,layout=(1,2),size=(800,800))
-P1 = boxplot(Time,label="Hamiltonian",size=(400,800),margin=15pt,framestyle=:box,color=:grey,ylabel="Execution time(s)");
-P2 = boxplot(Time2,label="Metropolis-Hastings",size=(400,800),margin=15pt,framestyle=:box,color=:darkolivegreen);
-plot(P1,P2,layout=(1,2),size=(800,800))
+
+# Performing Experiments For Sonar Example
+# N = 10000, M = 50,100,200, α = 0.5
+# N = 50000, M = 50,100,200, α = 0.5
+# N = 100000,M = 50,100,200,800, α = 0.5
+
+println("Runing experiment with N = 10000, M = 50,α = 0.5")
+R = run_exp(10000,50,0.1,0.5,sonar)
+CSV.write("N1e4M50eps01alpha05.csv",R)
+
+println("Runing experiment with N = 10000, M = 100,α = 0.5")
+R = run_exp(10000,100,0.1,0.5,sonar)
+CSV.write("N1e4M100eps01alpha05.csv",R)
+
+println("Runing experiment with N = 10000, M = 200,α = 0.5")
+R = run_exp(10000,200,0.1,0.5,sonar)
+CSV.write("N1e4M200eps01alpha05.csv",R)
+
+
+println("Runing experiment with N = 50000, M = 50,α = 0.5")
+R = run_exp(50000,50,0.1,0.5,sonar)
+CSV.write("N5e4M50eps01alpha05.csv",R)
+
+println("Runing experiment with N = 50000, M = 100,α = 0.5")
+R = run_exp(50000,100,0.1,0.5,sonar)
+CSV.write("N5e4M100eps01alpha05.csv",R)
+
+println("Runing experiment with N = 50000, M = 200,α = 0.5")
+R = run_exp(50000,200,0.1,0.5,sonar)
+CSV.write("N5e4M200eps01alpha05.csv",R)
+
+
+

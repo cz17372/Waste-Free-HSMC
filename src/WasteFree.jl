@@ -71,7 +71,7 @@ function ChopinOneStepExplore(X,W,M,P;ϵ,model,λ)
     UMat  = zeros(P,M)
     A = vcat(fill.(1:(M*P),rand(Multinomial(M,W)))...)
     Σ = cov(X,Weights(W))
-    for n = 1:M
+    Threads.@threads for n = 1:M
         x0 = X[A[n],:]
         XMat[:,:,n],U0Mat[:,n],UMat[:,n] = MH(x0,P,Σ,model,λ)
     end
