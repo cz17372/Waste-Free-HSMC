@@ -4,39 +4,49 @@ using ForwardDiff:gradient
 D = 61
 dir = @__DIR__
 data = npzread(dir*"/sonar.npy"); y = data[:,1]; z = data[:,2:end]
-function logL(x;grad=false)
+function logL(x;requires_grad=true)
     elvec = exp.(-y .* (z*x))
     llk = sum(-log.(1 .+ elvec))
-    if grad
-        g = -sum((-1 .+ 1 ./ (1 .+ elvec)) .* (y.*z),dims=1)[1,:]
-        return (llk,g)
+    if requires_grad
+        grad = -sum((-1 .+ 1 ./ (1 .+ elvec)) .* (y.*z),dims=1)[1,:]
+        return (llk,grad)
     else
         return llk
     end
 end
-logν(x) = logpdf(Normal(0,20),x[1])+sum(logpdf.(Normal(0,5),x[2:end]))
-logγ(x) = logL(x)+logν(x)
-function U(x;grad=false)
-    if grad
-        llk,g1 = logL(x,grad=grad)
-        u = -logν(x)-llk
-        g2 = -gradient(logν,x) .- g1
-        return (u,g2)
+function logν(x;requires_grad=true)
+    σ = [[20.0^2];repeat([5.0^2],60)]
+    if requires_grad
+        log_density = -1/2*sum((x.^2) ./ σ) - 1/2*sum(log.(2*pi*σ))
+        grad = -x ./ σ
+        return (log_density,grad)
     else
-        llk = logL(x,grad=grad)
-        return -logν(x) - llk
+        return -1/2*sum((x.^2) ./ σ) - 1/2*sum(log.(2*pi*σ))
     end
 end
-function U0(x;grad=false)
-    if grad
-        llk = -logν(x)
-        g = -gradient(logν,x)
-        return (llk,g)
+function U(x;requires_grad=true)
+    if requires_grad
+        llk,grad_llk = logL(x,requires_grad=true)
+        prior,grad_prior = logν(x,requires_grad=true)
+        u = -llk - prior
+        grad = -grad_llk .- grad_prior
+        return (u,grad)
     else
-        return -logν(x)
+        llk = logL(x,requires_grad=false)
+        prior = logν(x,requires_grad=false)
+        return -llk - prior
+    end
+end
+function U0(x;requires_grad=true)
+    if requires_grad
+        u0,grad = logν(x,requires_grad=true)
+        return (-u0,-grad)
+    else
+        u0 = logν(x,requires_grad=false)
+        return -u0
     end
 end
 Σ = Diagonal([[20.0^2];repeat([5.0^2],60)]);
-initDist = MultivariateNormal(zeros(61),Σ)
+initDist = MultivariateNormal(zeros(D),Σ)
 export U0, U, initDist
 end
