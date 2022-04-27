@@ -43,35 +43,18 @@ end
 
 println("Enter the Number of Particles")
 N = readline()
+filename = "N"*N
 N = parse(Int64,N)
+println("Enter M")
+M = readline()
+M = parse(Int64,M)
 
-R1 = overallexp(N,50,0.1,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M50eps01alpha05indentity.csv"
+println("Enter ϵ")
+ϵ = readline()
+filename = filename*ϵ
+ϵ = parse(Float64,ϵ)/100
+
+filename = filename*"alpha50indentity.csv"
+println("Running experiments for N = $(N), M = $(M), ϵ = $(ϵ)")
+R1 = overallexp(N,M,ϵ,0.5,sonar,mass_mat="identity",silence=false)
 CSV.write(filename,R1)
-R2 = overallexp(N,50,0.2,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M50eps02alpha05indentity.csv"
-CSV.write(filename,R2)
-R3 = overallexp(N,50,0.3,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M50eps03alpha05indentity.csv"
-CSV.write(filename,R3)
-
-
-R4 = overallexp(N,100,0.1,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M100eps01alpha05indentity.csv"
-CSV.write(filename,R4)
-R5 = overallexp(N,100,0.2,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M100eps02alpha05indentity.csv"
-CSV.write(filename,R5)
-R6 = overallexp(N,100,0.3,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M100eps03alpha05indentity.csv"
-CSV.write(filename,R6)
-
-R7 = overallexp(N,200,0.1,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M200eps01alpha05indentity.csv"
-CSV.write(filename,R7)
-R8 = overallexp(N,200,0.2,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M200eps02alpha05indentity.csv"
-CSV.write(filename,R8)
-R9 = overallexp(N,200,0.3,0.5,sonar,mass_mat="identity",silence=false)
-filename = "N"*string(N)*"M200eps03alpha05indentity.csv"
-CSV.write(filename,R9)
