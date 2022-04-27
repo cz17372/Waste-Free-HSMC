@@ -47,11 +47,11 @@ filename = "N"*N
 N = parse(Int64,N)
 println("Enter M")
 M = readline()
+filename = filename*"M"*M
 M = parse(Int64,M)
-
 println("Enter ϵ")
 ϵ = readline()
-filename = filename*ϵ
+filename = filename*"eps"*ϵ
 ϵ = parse(Float64,ϵ)/100
 
 filename = filename*"alpha50indentity.csv"
