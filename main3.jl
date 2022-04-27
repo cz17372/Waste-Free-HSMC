@@ -2,53 +2,76 @@ using Distributed, SharedArrays,DataFrames,CSV
 println("Enter the number of workers...")
 NWorker = readline()
 NWorker = parse(Int64,NWorker)
-addprocs(5)
+addprocs(NWorker)
 @everywhere include("Models/sonar.jl")
 @everywhere include("src/WasteFree.jl")
 @everywhere using Distributed, DistributedArrays
 @everywhere using Statistics, StatsBase
-function run_exp(N,M,ϵ,α,model,mass_mat;silence=true)
-    Time_Sequential = SharedArray{Float64}(100)
-    Time_Independent= SharedArray{Float64}(100)
-    Time_Full       = SharedArray{Float64}(100)
-    Time_Chopin     = SharedArray{Float64}(100)
-    NC_Sequential   = SharedArray{Float64}(100)
-    NC_Independent  = SharedArray{Float64}(100)
-    NC_Full         = SharedArray{Float64}(100)
-    NC_Chopin       = SharedArray{Float64}(100)
-    MM_Sequential   = SharedArray{Float64}(100)
-    MM_Independent  = SharedArray{Float64}(100)
-    MM_Full         = SharedArray{Float64}(100)
-    MM_Chopin       = SharedArray{Float64}(100)
+function run_exp(N,M,ϵ,α,model,method;mass_mat,silence=true)
+    Time = SharedArray{Float64}(100)
+    NC   = SharedArray{Float64}(100)
+    NC  = SharedArray{Float64}(100)
+    MM  = SharedArray{Float64}(100)
     @sync @distributed for n = 1:100
         if !silence
-            println("Running WFSMC-Sequential for index $(n)")
+            println("Running Simulation for index $(n)")
         end
-        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="sequential",mass_mat=mass_mat);
-        Time_Sequential[n] = t.time - t.gctime
-        NC_Sequential[n] = sum(log.(mean(exp.(R.logW),dims=1)))
-        MM_Sequential[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
-        if !silence
-            println("Running WFSMC-Independent for index $(n)")
-        end
-        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="independent",mass_mat=mass_mat);
-        Time_Independent[n] = t.time - t.gctime
-        NC_Independent[n] = sum(log.(mean(exp.(R.logW),dims=1)))
-        MM_Independent[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
-        if !silence
-            println("Running WFSMC-Full for index $(n)")
-        end
-        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="full");
-        Time_Full[n] = t.time
-        NC_Full[n] = sum(log.(mean(exp.(R.logW),dims=1)))
-        MM_Full[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
-        if !silence
-            println("Running WFSMC-Chopin for index $(n)")
-        end
-        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method="chopin",mass_mat=mass_mat);
-        Time_Chopin[n] = t.time - t.gctime
-        NC_Chopin[n] = sum(log.(mean(exp.(R.logW),dims=1)))
-        MM_Chopin[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
+        t = @timed R = WasteFree.SMC(N,M,model=model,ϵ=ϵ,α=α,method=method,mass_mat=mass_mat);
+        Time[n] = t.time - t.gctime
+        NC[n] = sum(log.(mean(exp.(R.logW),dims=1)))
+        MM[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
     end
-    return DataFrame(Time_Sequential=Time_Sequential,Time_Independent=Time_Independent,Time_Full=Time_Full,Time_Chopin=Time_Chopin,NC_Sequential=NC_Sequential,NC_Independent=NC_Independent,NC_Full=NC_Full,NC_Chopin=NC_Chopin,MM_Sequential=MM_Sequential,MM_Independent=MM_Independent,MM_Full=MM_Full,MM_Chopin=MM_Chopin)
+    return DataFrame("exprid"=>collect(1:100),"Time_"*method=>Time,"NC_"*method=>NC,"MM_"*method=>MM)
 end
+
+function overallexp(N,M,ϵ,α,model;mass_mat,silence=true)
+    R  = DataFrame("exprid"=>collect(1:100))
+    println("Running WF-Sequential...")
+    R_Sequential = run_exp(N,M,ϵ,α,model,"sequential",mass_mat=mass_mat,silence=silence)
+    R = leftjoin(R,R_Sequential,on="exprid")
+    println("Running WF-Independent...")
+    R_Independent = run_exp(N,M,ϵ,α,model,"independent",mass_mat=mass_mat,silence=silence)
+    R = leftjoin(R,R_Independent,on="exprid")
+    println("Running WF-Full...")
+    R_Full = run_exp(N,M,ϵ,α,model,"full",mass_mat=mass_mat,silence=silence)
+    R = leftjoin(R,R_Full,on="exprid")
+    println("Running WF-Chopin...")
+    R_Chopin = run_exp(N,M,ϵ,α,model,"chopin",mass_mat=mass_mat,silence=silence)
+    R = leftjoin(R,R_Chopin,on="exprid")
+    return R
+end
+
+println("Enter the Number of Particles")
+N = readline()
+N = parse(Int64,N)
+
+R1 = overallexp(N,50,0.1,0.5,sonar,mass_mat="identity",silence=false)
+R2 = overallexp(N,50,0.2,0.5,sonar,mass_mat="identity",silence=false)
+R3 = overallexp(N,50,0.3,0.5,sonar,mass_mat="identity",silence=false)
+
+R4 = overallexp(N,100,0.1,0.5,sonar,mass_mat="identity",silence=false)
+R5 = overallexp(N,100,0.2,0.5,sonar,mass_mat="identity",silence=false)
+R6 = overallexp(N,100,0.3,0.5,sonar,mass_mat="identity",silence=false)
+
+R7 = overallexp(N,200,0.1,0.5,sonar,mass_mat="identity",silence=false)
+R8 = overallexp(N,200,0.2,0.5,sonar,mass_mat="identity",silence=false)
+R9 = overallexp(N,200,0.3,0.5,sonar,mass_mat="identity",silence=false)
+
+filename = "N"*string(N)*"M50eps01alpha05indentity.csv"
+CSV.write(filename,R1)
+filename = "N"*string(N)*"M50eps02alpha05indentity.csv"
+CSV.write(filename,R2)
+filename = "N"*string(N)*"M50eps03alpha05indentity.csv"
+CSV.write(filename,R3)
+filename = "N"*string(N)*"M100eps01alpha05indentity.csv"
+CSV.write(filename,R4)
+filename = "N"*string(N)*"M100eps02alpha05indentity.csv"
+CSV.write(filename,R5)
+filename = "N"*string(N)*"M100eps03alpha05indentity.csv"
+CSV.write(filename,R6)
+filename = "N"*string(N)*"M200eps01alpha05indentity.csv"
+CSV.write(filename,R7)
+filename = "N"*string(N)*"M200eps02alpha05indentity.csv"
+CSV.write(filename,R8)
+filename = "N"*string(N)*"M200eps03alpha05indentity.csv"
+CSV.write(filename,R9)
