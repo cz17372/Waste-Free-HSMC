@@ -48,27 +48,27 @@ N = parse(Int64,N)
 R1 = overallexp(N,50,0.1,0.5,sonar,mass_mat="identity",silence=false)
 R2 = overallexp(N,50,0.2,0.5,sonar,mass_mat="identity",silence=false)
 R3 = overallexp(N,50,0.3,0.5,sonar,mass_mat="identity",silence=false)
-
-R4 = overallexp(N,100,0.1,0.5,sonar,mass_mat="identity",silence=false)
-R5 = overallexp(N,100,0.2,0.5,sonar,mass_mat="identity",silence=false)
-R6 = overallexp(N,100,0.3,0.5,sonar,mass_mat="identity",silence=false)
-
-R7 = overallexp(N,200,0.1,0.5,sonar,mass_mat="identity",silence=false)
-R8 = overallexp(N,200,0.2,0.5,sonar,mass_mat="identity",silence=false)
-R9 = overallexp(N,200,0.3,0.5,sonar,mass_mat="identity",silence=false)
-
 filename = "N"*string(N)*"M50eps01alpha05indentity.csv"
 CSV.write(filename,R1)
 filename = "N"*string(N)*"M50eps02alpha05indentity.csv"
 CSV.write(filename,R2)
 filename = "N"*string(N)*"M50eps03alpha05indentity.csv"
 CSV.write(filename,R3)
+
+
+R4 = overallexp(N,100,0.1,0.5,sonar,mass_mat="identity",silence=false)
+R5 = overallexp(N,100,0.2,0.5,sonar,mass_mat="identity",silence=false)
+R6 = overallexp(N,100,0.3,0.5,sonar,mass_mat="identity",silence=false)
 filename = "N"*string(N)*"M100eps01alpha05indentity.csv"
 CSV.write(filename,R4)
 filename = "N"*string(N)*"M100eps02alpha05indentity.csv"
 CSV.write(filename,R5)
 filename = "N"*string(N)*"M100eps03alpha05indentity.csv"
 CSV.write(filename,R6)
+
+R7 = overallexp(N,200,0.1,0.5,sonar,mass_mat="identity",silence=false)
+R8 = overallexp(N,200,0.2,0.5,sonar,mass_mat="identity",silence=false)
+R9 = overallexp(N,200,0.3,0.5,sonar,mass_mat="identity",silence=false)
 filename = "N"*string(N)*"M200eps01alpha05indentity.csv"
 CSV.write(filename,R7)
 filename = "N"*string(N)*"M200eps02alpha05indentity.csv"
