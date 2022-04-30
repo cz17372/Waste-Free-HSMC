@@ -53,8 +53,9 @@ println("Enter ϵ")
 ϵ = readline()
 filename = filename*"eps"*ϵ
 ϵ = parse(Float64,ϵ)/100
-
-filename = filename*"alpha50indentity.csv"
-println("Running experiments for N = $(N), M = $(M), ϵ = $(ϵ)")
+println("Enter the mass matrix type")
+mass_mat = readline()
+filename = filename*"alpha50"*mass_mat*".csv"
+println("Running experiments for N = $(N), M = $(M), ϵ = $(ϵ), mass_mat = $(mass_mat)")
 R1 = overallexp(N,M,ϵ,0.5,sonar,mass_mat="identity",silence=false)
 CSV.write(filename,R1)

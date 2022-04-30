@@ -79,7 +79,7 @@ function ChopinOneStepExplore(X,W,M,P;ϵ,model,λ)
     UMat  = zeros(P,M)
     A = vcat(fill.(1:(M*P),rand(Multinomial(M,W)))...)
     Σ = cov(X,Weights(W))
-    Threads.@threads for n = 1:M
+    for n = 1:M
         x0 = X[A[n],:]
         XMat[:,:,n],U0Mat[:,n],UMat[:,n] = MH(x0,P,Σ,model,λ)
     end
@@ -175,10 +175,12 @@ end
 function look_for_next_lambda(x,v,u0,u,ke,prevλ,α;method)
     P,_,M = size(x)
     maxESS = ESS(get_weights(x,v,u0,u,ke,prevλ,prevλ,method=method))
+    #println(maxESS)
     f(lambda) = ESS(get_weights(x,v,u0,u,ke,prevλ,lambda,method=method)) - α*maxESS
     a = prevλ
     b = prevλ+0.1
     while f(a)*f(b) >= 0
+        #println(f(a)," ",f(b))
         b += 0.1
     end
     return find_zero(f,(a,b),Bisection())
