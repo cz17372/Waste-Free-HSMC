@@ -14,4 +14,4 @@ data_M10
 
 
 df = DataFrame("exprid" => collect(1:100))
-CSV.write("data/LR/chopin.csv",df)
+CSV.write("data/sonar/chopin.csv",df)
