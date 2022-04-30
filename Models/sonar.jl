@@ -4,6 +4,7 @@ using ForwardDiff:gradient
 D = 61
 dir = @__DIR__
 data = npzread(dir*"/sonar.npy"); y = data[:,1]; z = data[:,2:end]
+name = "sonar"
 function logL(x;requires_grad=true)
     elvec = exp.(-y .* (z*x))
     llk = sum(-log.(1 .+ elvec))
