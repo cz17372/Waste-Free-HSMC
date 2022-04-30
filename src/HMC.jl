@@ -1,5 +1,5 @@
 module HMC
-using Distributions,LinearAlgebra
+using Distributions,LinearAlgebra,ProgressMeter
 function ψ(x0,v0,n;ϵ,U,keeptrej=false)
     xvec = zeros(n+1,length(x0))
     vvec = zeros(n+1,length(x0))
@@ -24,7 +24,7 @@ function run(N,ϵ,L;U,x0,acc_prob=false)
     output = zeros(N+1,length(x0))
     output[1,:] = x0
     accept = 0
-    for n = 2:(N+1)
+    @showprogress 1 for n = 2:(N+1)
         #velocity refreshment
         v0 = randn(length(x0))
         newx,newv = ψ(output[n-1,:],v0,L,ϵ=ϵ,U=U)
