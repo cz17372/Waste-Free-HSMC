@@ -22,10 +22,12 @@ function run_exp(N,M,ϵ,α,model,method;mass_mat,silence=true)
     rmprocs(procs()[2:end])
     return nothing
 end
-nprocs = 5
-N = [10000];
-M = [5,10,50,100];
-ϵ = [0.2]
+println("Enter the number of workers")
+nprocs = readline()
+nprocs = parse(Int64,nprocs)
+N = [10000,50000];
+M = [20,50,100,200,500];
+ϵ = [0.1,0.2,0.3]
 α = [0.5,0.7,0.9]
 for n in N
     for m in M
@@ -36,8 +38,8 @@ for n in N
                 @everywhere include("src/WasteFree.jl")
                 @everywhere using Distributed, DistributedArrays
                 @everywhere using Statistics, StatsBase
-                println("Running experiments for N = $(n), M = $(m), ϵ = $(eps), α=$(al), mass_mat = identity,method=chopin")
-                run_exp(n,m,eps,al,sonar,"chopin",mass_mat="identity",silence=false)
+                println("Running experiments for N = $(n), M = $(m), ϵ = $(eps), α=$(al), mass_mat = identity,method=full")
+                run_exp(n,m,eps,al,sonar,"full",mass_mat="identity",silence=false)
                 rmprocs(procs()[2:end])
             end
         end

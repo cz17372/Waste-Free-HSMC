@@ -2,7 +2,7 @@ using Distributed, SharedArrays,DataFrames,CSV
 println("Enter the number of workers...")
 NWorker = readline()
 NWorker = parse(Int64,NWorker)
-addprocs(NWorker)
+addprocs(5)
 @everywhere include("Models/sonar.jl")
 @everywhere include("src/WasteFree.jl")
 @everywhere using Distributed, DistributedArrays
@@ -52,4 +52,4 @@ println("Enter the method..")
 method = readline()
 filename = filename*method*".csv"
 println("Running experiments for N = $(N), M = $(M), ϵ = $(ϵ), α=$(α), mass_mat = $(mass_mat),method=$(method)")
-run_exp(N,M,ϵ,α,sonar,method,mass_mat="identity",silence=false)
+run_exp(N,M,ϵ,α,sonar,method,mass_mat=mass_mat,silence=false)
