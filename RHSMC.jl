@@ -25,7 +25,10 @@ end
 println("Enter the number of workers")
 nprocs = readline()
 nprocs = parse(Int64,nprocs)
-N = [10000];
+println("Enter N")
+N = readline()
+N = parse(Int64,N)
+N = [N];
 M = [20,50,100,200,500];
 ϵ = [0.1,0.2,0.3]
 α = [0.5,0.7,0.9]

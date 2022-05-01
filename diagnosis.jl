@@ -13,12 +13,8 @@ data_M10[!,"newcol"] = rand(100)
 data_M10
 
 
-df = DataFrame("exprid" => collect(1:100))
-CSV.write("data/sonar/full.csv",df)
-
 using CSV, DataFrames, StatsPlots, PlotlyJS
 
 data = CSV.read("data/sonar/full.csv",DataFrame)
-boxplot(data.N10000M20eps10alpha50_NC,ylim=(-140,-110))
-bp1 = box(y=data.N10000M20eps10alpha70_NC)
+bp1 = box(y=data.N10000M20eps20alpha70_NC)
 PlotlyJS.plot(bp1,Layout(yaxis_range=(-140,-110)))
