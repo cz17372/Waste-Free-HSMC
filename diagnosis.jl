@@ -1,4 +1,4 @@
-using CSV, DataFrames, StatsPlots
+using CSV, DataFrames, StatsPlots, PlotlyJS
 data_M4  = CSV.read("data/LR/Chopin/N10000M4eps1080identitychopin.csv",DataFrame)
 data_M10 = CSV.read("data/LR/Chopin/N10000M10eps10alpha80identitychopin.csv",DataFrame)
 data_M50 = CSV.read("data/LR/Chopin/N10000M50eps20alpha80identitychopin.csv",DataFrame)
@@ -15,3 +15,10 @@ data_M10
 
 df = DataFrame("exprid" => collect(1:100))
 CSV.write("data/sonar/full.csv",df)
+
+using CSV, DataFrames, StatsPlots, PlotlyJS
+
+data = CSV.read("data/sonar/full.csv",DataFrame)
+boxplot(data.N10000M20eps10alpha50_NC,ylim=(-140,-110))
+bp1 = box(y=data.N10000M20eps10alpha70_NC)
+PlotlyJS.plot(bp1,Layout(yaxis_range=(-140,-110)))

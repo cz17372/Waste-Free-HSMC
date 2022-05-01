@@ -14,7 +14,7 @@ function run_exp(N,M,ϵ,α,model,method;mass_mat,silence=true)
     end
     filename = "data/"*model.name*"/"*method*".csv"
     df = CSV.read(filename,DataFrame)
-    dat_name = "N$(N)M$(M)alpha$(Int(α*100))"
+    dat_name = "N$(N)M$(M)eps$(Int(ϵ*100))alpha$(Int(α*100))"
     df[!,dat_name*"_Time"] = Time
     df[!,dat_name*"_NC"] = NC
     df[!,dat_name*"_MM"] = MM
@@ -25,10 +25,12 @@ end
 println("Enter the number of workers")
 nprocs = readline()
 nprocs = parse(Int64,nprocs)
-N = [10000,50000];
+N = [10000];
 M = [20,50,100,200,500];
 ϵ = [0.1,0.2,0.3]
 α = [0.5,0.7,0.9]
+df = DataFrame("exprid" => collect(1:100))
+CSV.write("data/sonar/full.csv",df)
 for n in N
     for m in M
         for eps in ϵ
