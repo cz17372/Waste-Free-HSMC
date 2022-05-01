@@ -16,5 +16,5 @@ data_M10
 using CSV, DataFrames, StatsPlots, PlotlyJS
 
 data = CSV.read("data/sonar/full.csv",DataFrame)
-bp1 = box(y=data.N10000M20eps20alpha70_NC)
+bp1 = box(y=data.N10000M200eps20alpha50_NC)
 PlotlyJS.plot(bp1,Layout(yaxis_range=(-140,-110)))
