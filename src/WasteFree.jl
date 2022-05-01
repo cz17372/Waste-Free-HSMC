@@ -1,5 +1,5 @@
 module WasteFree
-using Distributions, Roots, LinearAlgebra, StatsBase
+using Distributions, Roots, LinearAlgebra, StatsBase, Optim
 using ForwardDiff:gradient
 export SMC
 function ψ(x0,v0,n,invM;ϵ,model,λ)
@@ -174,16 +174,17 @@ function getW(log_weights)
 end
 function look_for_next_lambda(x,v,u0,u,ke,prevλ,α;method)
     P,_,M = size(x)
-    maxESS = ESS(get_weights(x,v,u0,u,ke,prevλ,prevλ,method=method))
+    if method == "full"
+        res = optimize(tar->-ESS(get_weights(x,v,u0,u,ke,prevλ,tar,method=method)),prevλ,1.0)
+        maxESS = -res.minimum
+        #println("The max ESS achieves at temp = $(Optim.minimizer(res))")
+    else
+        maxESS = ESS(get_weights(x,v,u0,u,ke,prevλ,prevλ,method=method))
+    end
     #println(maxESS)
     f(lambda) = ESS(get_weights(x,v,u0,u,ke,prevλ,lambda,method=method)) - α*maxESS
-    a = prevλ
-    b = prevλ+0.1
-    while f(a)*f(b) >= 0
-        #println(f(a)," ",f(b))
-        b += 0.1
-    end
-    return find_zero(f,(a,b),Bisection())
+    rt = find_zeros(f,prevλ,2.0)
+    return rt[1]
 end
 function merge_array(x)
     P,D,M = size(x)
@@ -211,13 +212,17 @@ function SMC(N,M;model,ϵ,α,method,mass_mat="adaptive",printl=false)
     MAX = findmax(logW[:,1])[1]
     W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
     t = 1
+    temp_time = 0.0
+    exp_time  = 0.0
     while λ[end] < 1.0
         t += 1
-        x,v,u0,u,ke = get_particles(X[t-1],W[:,t-1],M,P,ϵ=ϵ,model=model,λ=λ[t-1],method=method,mass_mat=mass_mat)
+        t1 = @timed x,v,u0,u,ke = get_particles(X[t-1],W[:,t-1],M,P,ϵ=ϵ,model=model,λ=λ[t-1],method=method,mass_mat=mass_mat)
+        exp_time += t1.time - t1.gctime
         if printl
             println("looking for new lambda ")
         end
-        newλ = look_for_next_lambda(x,v,u0,u,ke,λ[t-1],α,method=method)
+        t2 = @timed newλ = look_for_next_lambda(x,v,u0,u,ke,λ[t-1],α,method=method)
+        temp_time += t2.time - t2.gctime
         if printl
             println("the new temperature at iteration $(t) is ",newλ)
         end
@@ -230,6 +235,6 @@ function SMC(N,M;model,ϵ,α,method,mass_mat="adaptive",printl=false)
         logW = hcat(logW,get_weights(x,v,u0,u,ke,λ[t-1],λ[t],method=method))
         W = hcat(W,getW(logW[:,t]))
     end
-    return (X=X,λ=λ,W=W,logW=logW)
+    return (X=X,λ=λ,W=W,logW=logW,explore_time = exp_time,temp_time=temp_time)
 end
 end
