@@ -33,14 +33,14 @@ M = [50,100,200,500];
 ϵ = [0.1,0.15,0.2]
 α = [0.5,0.7,0.9]
 df = DataFrame("exprid" => collect(1:100))
-CSV.write("data/sonar/full.csv",df)
+CSV.write("data/sonar/full2.csv",df)
 for n in N
     for m in M
         for eps in ϵ
             for al in α
                 addprocs(nprocs)
                 @everywhere include("Models/sonar.jl")
-                @everywhere include("src/WasteFree.jl")
+                @everywhere include("src/WasteFree2.jl")
                 @everywhere using Distributed, DistributedArrays
                 @everywhere using Statistics, StatsBase
                 println("Running experiments for N = $(n), M = $(m), ϵ = $(eps), α=$(al), mass_mat = identity,method=full")

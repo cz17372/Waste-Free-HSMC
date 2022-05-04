@@ -24,22 +24,20 @@ function run_exp(N,M,ϵ,α,model,method;mass_mat,silence=true)
 end
 nprocs = 5
 N = [10000];
-M = [5,10,50,100];
+M = [2,5,10,50,100];
 ϵ = [0.2]
 α = [0.5,0.7,0.9]
-for n in N
-    for m in M
-        for eps in ϵ
-            for al in α
-                addprocs(nprocs)
-                @everywhere include("Models/sonar.jl")
-                @everywhere include("src/WasteFree.jl")
-                @everywhere using Distributed, DistributedArrays
-                @everywhere using Statistics, StatsBase
-                println("Running experiments for N = $(n), M = $(m), ϵ = $(eps), α=$(al), mass_mat = identity,method=chopin")
-                run_exp(n,m,eps,al,sonar,"chopin",mass_mat="identity",silence=false)
-                rmprocs(procs()[2:end])
-            end
-        end
+df = DataFrame("exprid" => collect(1:100))
+CSV.write("data/sonar/chopin.csv",df)
+for m in M
+    for al in α
+        addprocs(nprocs)
+        @everywhere include("Models/sonar.jl")
+        @everywhere include("src/WasteFree.jl")
+        @everywhere using Distributed, DistributedArrays
+        @everywhere using Statistics, StatsBase
+        println("Running experiments for N = 10000, M = $(m), ϵ = 0.2, α=$(al), mass_mat = identity,method=chopin")
+        run_exp(10000,m,0.2,al,sonar,"chopin",mass_mat="identity",silence=false)
+        rmprocs(procs()[2:end])
     end
 end

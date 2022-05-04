@@ -1,16 +1,19 @@
-using Distributions,LinearAlgebra
+using Distributions,LinearAlgebra, StatsBase
 include("Models/banana.jl")
 include("Models/sonar.jl")
 include("src/HMC.jl")
-include("src/WasteFree.jl")
+include("src/WasteFree2.jl")
 R,acc = HMC.run(100000,1.0,20,U=banana.U,x0=randn(2),acc_prob=true)
 lines(R[:,2])
 
-@time R = WasteFree.SMC(10000,100,model=sonar,ϵ=0.2,α=0.5,method="full",mass_mat="identity");
+@time R = WasteFree.SMC(10000,100,model=sonar,ϵ=0.2,α=0.5,method="full",mass_mat="identity",printl=true);
 
 function LogNC(R)
     return sum(log.(mean(exp.(R.logW),dims=1)[1,:]))
 end
+
+LogNC(R)
+
 CairoMakie.scatter(R[:,1],R[:,2])
 
 x = range(-40,40,step=0.1)
