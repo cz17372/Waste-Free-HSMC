@@ -122,7 +122,7 @@ function get_particles(X,W,M,P;ϵ,model,λ,method,mass_mat)
         end
         return newx,newv,newu0,newu,newke
     elseif method == "independent"
-        x,v,u0,u,ke = OneStepExplore(X,W,M,P,ϵ=ϵ,model=model,λ = λ,mass_mat=mass_mat)
+        x,v,u0,u,ke,h = OneStepExplore(X,W,M,P,ϵ=ϵ,model=model,λ = λ,mass_mat=mass_mat)
         for n = 1:M
             H0 = (1-λ)*u0[1,n] + λ*u[1,n] + ke[1,n]
             for k = 2:P
@@ -136,7 +136,7 @@ function get_particles(X,W,M,P;ϵ,model,λ,method,mass_mat)
                 end
             end
         end
-        return x,v,u0,u,ke
+        return x,v,u0,u,ke,h
     elseif method == "chopin"
         return ChopinOneStepExplore(X,W,M,P,ϵ=ϵ,model=model,λ=λ)
     end
@@ -185,7 +185,7 @@ function look_for_next_lambda(x,v,u0,u,ke,prevλ,α;method)
     end
     #println(maxESS)
     f(lambda) = ESS(get_weights(x,v,u0,u,ke,prevλ,lambda,method=method)) - α*maxESS
-    rt = find_zeros(f,prevλ,2.0)
+    rt = find_zeros(f,prevλ,100.0)
     return rt[1]
 end
 function merge_array(x)
