@@ -59,18 +59,11 @@ end
 function LogNC(R)
     return sum(log.(mean(exp.(R.logW),dims=1)[1,:]))
 end
+getmaxidx(x) = findmax(x)[2]
 
-
-
-N = 30000; M = 100; P = div(N,M)
+N = 100000; M = 100; P = div(N,M)
 include("src/WasteFree4.jl")
-R = WasteFree.SMC(N,M,model=sonar,ϵ=0.2,α=0.5,method="independent",mass_mat="identity",printl=true);
-fig1 = plotJumpVar(R,0.4,M,P)
-plotJumpVar(R,0.3,M,P,fig=fig1,col="Reds")
-VEC02 = ESJD(R,M,P)
-jjj,D,W = JumpVariance(R.X[20],R.H[:,20],P,M)
-
-
-JV = JumpVariance(R,M,P)
-
-plot(JV[end-8,:])
+R = WasteFree.SMC(N,M,model=sonar,ϵ=0.1,α=0.5,method="independent",mass_mat="identity",printl=true);
+fig1 = plotJumpVar(R,0.1,M,P)
+JV = JumpVariance(R,M,P)[:,1:500]
+plot(mapslices(getmaxidx,JV,dims=2)[:,1] * 0.1)
