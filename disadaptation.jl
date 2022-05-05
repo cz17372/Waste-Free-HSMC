@@ -15,7 +15,8 @@ M = parse(Int64,M)
 P = div(N,M)
 @sync @distributed for n = 1:100
     println("Running Simulation for index $(n)")
-    R = WasteFree.SMC(N,M,model=sonar,λ=λ,ϵ=τ/P,α=0.5,method="full",mass_mat="identity");
+    R = WasteFree.SMC(N,M,model=sonar,λ=λ,ϵ=0.35*ones(length(λ)-1),α=0.5,method="full",mass_mat="identity");
     NC[n] = sum(log.(mean(exp.(R.logW),dims=1)))
     MM[n] = sum(R.W[:,end].*mean(R.X[end],dims=2))
 end
+
