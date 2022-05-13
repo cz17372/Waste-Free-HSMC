@@ -29,7 +29,7 @@ println("Enter N")
 N = readline()
 N = parse(Int64,N)
 N = [N];
-M = [250,300,400,500,600];
+M = [100,75,125];
 ϵ = [0.05,0.1,0.15,0.2,0.25,0.3,0.35]
 α = [0.5]
 df = DataFrame("exprid" => collect(1:100))

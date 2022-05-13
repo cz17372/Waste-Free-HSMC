@@ -136,12 +136,7 @@ function plotCI(R,ss,M,P;col="Blues",fig=nothing)
 end
 
 using JLD2; @load "data.jld2" λ τ
-include("src/WasteFree3.jl")
-eps = 0.1; N = Int(120/eps*100); M = 100; P = div(N,M);R = WasteFree.SMC(N,M,model=sonar,λ=λ,ϵ=eps*ones(length(λ)-1),α=0.5,method="full",mass_mat="identity",printl=true);
-fig2 = plotTrajESS(R,0.05,M,P)
-plotTrajESS(R,eps,M,P,col="Grays",fig=fig2)
-
-plotCI(R,eps,M,P)
-plot(mapslices(getmaxidx,CrazyIdea(R,M,P),dims=2)[:,1] * eps)
-
-fig1 = plotJumpVar(R,eps,M,P)
+include("src/WasteFree4.jl")
+using StatProfilerHTML
+eps = 0.2; N = Int(10/eps*20); M = 20; P = div(N,M);
+StatProfilerHTML.@profilehtml R = WasteFree.SMC(N,M,model=sonar,ϵ=0.1,α=0.5,method="full",mass_mat="identity",printl=true)
