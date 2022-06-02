@@ -1,5 +1,5 @@
 using Distributed, SharedArrays,DataFrames,CSV
-function run_exp(N,M,ϵ,α,λ,model,method;mass_mat,silence=true)
+function run_exp(N,M,ϵ,α,λ,model,method;mass_mat,filename,silence=true)
     Time = SharedArray{Float64}(100)
     NC   = SharedArray{Float64}(100)
     MM  = SharedArray{Float64}(100)
@@ -25,13 +25,12 @@ end
 println("Enter the number of workers")
 nprocs = readline()
 nprocs = parse(Int64,nprocs)
-println("Enter N")
-N = readline()
-N = parse(Int64,N)
-N = [N];
-M = [50,150,200,250,300,400,500,600];
+N = [30000];
+M = [50,75,100,125,150,200,250,300,400,500,600,1000,1500,2000];
 df = DataFrame("exprid" => collect(1:100))
-CSV.write("data/sonar/full4.csv",df)
+println("Enter the file name...")
+filename = readline()
+CSV.write("data/sonar/"*filename,df)
 for n in N
     for m in M
         addprocs(nprocs)
