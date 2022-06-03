@@ -109,19 +109,17 @@ function SMC(N,M,ϵ0,L,a,b,niter)
     end
     MAX = findmax(logW[:,1])[1]
     W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
-    LogNC = 0.0
+    LogNC = logcdf(Normal(0,1),b[1]/L[1,1]) - logcdf(Normal(0,1),a[1]/L[1,1])
     ϵ = ϵ0
     for t = 2:niter
-        println(t)
         X[1:t,:],logW[:,t],nb = get_particles(X[1:(t-1),:],W[:,t-1],M,P,ϵ,L,a,b)
         if nb > 5
             ϵ = ϵ*0.9
         end
         LogNC += log(mean(exp.(logW[:,t])))
-        println(LogNC,"No. Bounces = ",nb,"ϵ = ",ϵ)
+        #println("Iteration $(t), LogNC=$(LogNC), AveBounces=$(nb),ϵ=$(ϵ)")
         MAX = findmax(logW[:,t])[1]
         W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
-        #println("ESS = ",1/sum(W[:,t].^2))
     end
     return X,logW,W,LogNC
 end
