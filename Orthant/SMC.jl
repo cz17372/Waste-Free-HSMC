@@ -109,7 +109,7 @@ function SMC(N,M,ϵ0,L,a,b,niter)
     end
     MAX = findmax(logW[:,1])[1]
     W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
-    LogNC = logcdf(Normal(0,1),b[1]/L[1,1]) - logcdf(Normal(0,1),a[1]/L[1,1])
+    LogNC = log(cdf(Normal(0,1),b[1]/L[1,1])-cdf(Normal(0,1),a[1]/L[1,1]))
     ϵ = ϵ0
     for t = 2:niter
         X[1:t,:],logW[:,t],nb = get_particles(X[1:(t-1),:],W[:,t-1],M,P,ϵ,L,a,b)
