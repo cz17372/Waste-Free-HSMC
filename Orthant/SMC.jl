@@ -89,7 +89,6 @@ function get_particles(X,W,M,P,ϵ,L,a,b)
     end
     return newX,logW,mean(nbvec)
 end
-norm2(x) = dot(x,x)
 function conditionalOrthant(x0,L,a,b)
     n = length(x0)+1
     l = (a[n] - dot(L[n,(1:n-1)],x0))/L[n,n]
@@ -98,7 +97,8 @@ function conditionalOrthant(x0,L,a,b)
     NC    = cdf(Normal(0,1),u) - cdf(Normal(0,1),l)
     return [x0;[ext_x]],NC
 end
-function SMC(N,M,ϵ0,L,a,b,niter)
+function SMC(N,M,ϵ0,Σ,a,b,niter;MaxBounces = 5)
+    L = Matrix(cholesky(Σ).L)
     P = div(N,M)
     X = zeros(niter,N)
     logW = zeros(N,niter)
@@ -113,7 +113,7 @@ function SMC(N,M,ϵ0,L,a,b,niter)
     ϵ = ϵ0
     for t = 2:niter
         X[1:t,:],logW[:,t],nb = get_particles(X[1:(t-1),:],W[:,t-1],M,P,ϵ,L,a,b)
-        if nb > 5
+        if nb > MaxBounces
             ϵ = ϵ*0.9
         end
         LogNC += log(mean(exp.(logW[:,t])))
@@ -121,5 +121,6 @@ function SMC(N,M,ϵ0,L,a,b,niter)
         MAX = findmax(logW[:,t])[1]
         W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
     end
-    return X,logW,W,LogNC
+    MM = sum(mean(X,dims=1)[1,:] .* W[:,end])
+    return LogNC,MM
 end
