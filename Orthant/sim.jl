@@ -25,3 +25,5 @@ for i = 1:length(M)
     df[!,"MM_"*string(M[i])] = MM
 end
 CSV.write(filename,df)
+
+R = SMC(50000,500,0.2,Σ,a,b,150)

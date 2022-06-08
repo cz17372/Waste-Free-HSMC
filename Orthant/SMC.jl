@@ -27,7 +27,7 @@ function find_hitting_times(x0::Vector{Float64},v0::Vector{Float64},L::Matrix{Fl
         return ht_b,ib
     end
 end
-function ψexact(x0::Vector{Float64},v0::Vector{Float64},ϵ::Float64,L::Matrix{Float64},a::Vector{Float64},b::Vector{Float64};keeptraj=false)
+function ψexactall(x0::Vector{Float64},v0::Vector{Float64},ϵ::Float64,L::Matrix{Float64},a::Vector{Float64},b::Vector{Float64})
     d = length(x0)
     x = zeros(d,1);x[:,1] = x0
     v = zeros(d,1);v[:,1] = v0
@@ -48,12 +48,32 @@ function ψexact(x0::Vector{Float64},v0::Vector{Float64},ϵ::Float64,L::Matrix{F
     newv = -x[:,end]*sin(remaining_time) .+ v[:,end]*cos(remaining_time)
     x = hcat(x,newx)
     v = hcat(v,newv)
+    return x,v,nbounces
+end
+function ψexact(x0::Vector{Float64},v0::Vector{Float64},ϵ::Float64,L::Matrix{Float64},a::Vector{Float64},b::Vector{Float64};keeptraj=false)
     if keeptraj
-        return x,v,nbounces
+        return ψexactall(x0,v0,ϵ,L,a,b)
     else
-        return x[:,end],v[:,end],nbounces
+        x = copy(x0)
+        v = copy(v0)
+        remaining_time = ϵ
+        ht,i = find_hitting_times(x,v,L,a,b)
+        nbounces = 0
+        while ht < remaining_time
+            nbounces += 1
+            newx = x*cos(ht) .+ v*sin(ht)
+            n = normalize(L[i,:])
+            newv = reflect(-x*sin(ht) .+ v*cos(ht),n)
+            x = newx; v = newv
+            remaining_time -= ht
+            ht,i = find_hitting_times(x[:,end],v[:,end],L,a,b)
+        end
+        newx = x*cos(remaining_time) .+ v*sin(remaining_time)
+        newv = -x*sin(remaining_time) .+ v*cos(remaining_time)
+        return newx,newv,nbounces
     end
 end
+
 function LeapFrog(x0::Vector{Float64},v0::Vector{Float64},n::Int64,ϵ::Float64,L::Matrix{Float64},a::Vector{Float64},b::Vector{Float64};keeptraj=false)
     D = length(x0)
     outx = zeros(D,n+1);outx[:,1] = x0
@@ -117,7 +137,7 @@ function SMC(N,M,ϵ0,Σ,a,b,niter;MaxBounces = 5)
             ϵ = ϵ*0.9
         end
         LogNC += log(mean(exp.(logW[:,t])))
-        #println("Iteration $(t), LogNC=$(LogNC), AveBounces=$(nb),ϵ=$(ϵ)")
+        println("Iteration $(t), LogNC=$(LogNC), AveBounces=$(nb),ϵ=$(ϵ)")
         MAX = findmax(logW[:,t])[1]
         W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
     end
