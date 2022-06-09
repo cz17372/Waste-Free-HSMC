@@ -40,10 +40,8 @@ function OneStepExplore(X,W,M,P,ϵ,model,λ,mass_mat)
         invm = diagm(diag(Σ))
         m    = inv(invm)
     end
-    for n = 1:M
-        x0 = X[:,A[n]]
-        v0 = rand(MultivariateNormal(zeros(model.D),m))
-        XMat[:,:,n],VMat[:,:,n],U0Mat[:,n],UMat[:,n],KEMat[:,n],HMat[:,n] = ψ(x0,v0,P,invm,ϵ=ϵ,λ=λ,model=model)
+    Threads.@threads for n = 1:M
+        XMat[:,:,n],VMat[:,:,n],U0Mat[:,n],UMat[:,n],KEMat[:,n],HMat[:,n] = ψ(X[:,A[n]],rand(MultivariateNormal(zeros(model.D),m)),P,invm,ϵ=ϵ,λ=λ,model=model)
     end
     return XMat,VMat,U0Mat,UMat,KEMat,HMat
 end
@@ -103,17 +101,13 @@ function SMC(N,M;model,ϵ,α,mass_mat="adaptive",printl=false)
     MAX = findmax(logW[:,1])[1]
     W[:,1] = exp.(logW[:,1] .- MAX)/sum(exp.(logW[:,1] .- MAX))
     t = 1
-    temp_time = 0.0
-    exp_time  = 0.0
     while λ[end] < 1.0
         t += 1
-        t1 = @timed x,v,u0,u,ke,h = OneStepExplore(X[t-1],W[:,t-1],M,P,ϵ,model,λ[t-1],mass_mat)
-        exp_time += t1.time - t1.gctime
+        x,v,u0,u,ke,h = OneStepExplore(X[t-1],W[:,t-1],M,P,ϵ,model,λ[t-1],mass_mat)
         if printl
             println("looking for new lambda ")
         end
-        t2 = @timed newλ = look_for_next_lambda(u0,u,ke,λ[t-1],α,M,P)
-        temp_time += t2.time - t2.gctime
+        newλ = look_for_next_lambda(u0,u,ke,λ[t-1],α,M,P)
         if printl
             println("the new temperature at iteration $(t) is ",newλ)
         end
@@ -129,6 +123,6 @@ function SMC(N,M;model,ϵ,α,mass_mat="adaptive",printl=false)
     end
     logNC = sum(log.(mean(exp.(logW),dims=1)))
     MM = sum(W[:,end].*mean(X[end],dims=1)[1,:])
-    return (X=X,λ=λ,W=W,logW=logW,explore_time = exp_time,temp_time=temp_time,H=H,logNC=logNC,MM=MM)
+    return (X=X,λ=λ,W=W,logW=logW,H=H,logNC=logNC,MM=MM)
 end
 end
