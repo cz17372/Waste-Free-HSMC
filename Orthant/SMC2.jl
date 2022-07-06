@@ -104,7 +104,7 @@ function get_particles(X,W,M,P,ϵ,L,a,b)
     logW = zeros(N)
     A = vcat(fill.(1:N,rand(Multinomial(M,W)))...)
     nbvec = zeros(M)
-    for n = 0:(M-1)
+    Threads.@threads for n = 0:(M-1)
         newX[:,n*P+1:(n+1)*P],logW[n*P+1:(n+1)*P],nbvec[n+1] = generate_trajectory(X[:,A[n+1]],P,ϵ,L,a,b)
     end
     return newX,logW,mean(nbvec)
@@ -137,7 +137,7 @@ function SMC(N,M,ϵ0,Σ,a,b,niter;MaxBounces = 5)
             ϵ = ϵ*0.9
         end
         LogNC += log(mean(exp.(logW[:,t])))
-        #println("Iteration $(t), LogNC=$(LogNC), AveBounces=$(nb),ϵ=$(ϵ)")
+        println("Iteration $(t), LogNC=$(LogNC), AveBounces=$(nb),ϵ=$(ϵ)")
         MAX = findmax(logW[:,t])[1]
         W[:,t] = exp.(logW[:,t] .- MAX)/sum(exp.(logW[:,t] .- MAX))
     end

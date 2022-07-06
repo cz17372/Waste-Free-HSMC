@@ -40,7 +40,7 @@ function OneStepExplore(X,W,M,P,ϵ,model,λ,mass_mat)
         invm = diagm(diag(Σ))
         m    = inv(invm)
     end
-    Threads.@threads for n = 1:M
+    for n = 1:M
         XMat[:,:,n],VMat[:,:,n],U0Mat[:,n],UMat[:,n],KEMat[:,n],HMat[:,n] = ψ(X[:,A[n]],rand(MultivariateNormal(zeros(model.D),m)),P,invm,ϵ=ϵ,λ=λ,model=model)
     end
     return XMat,VMat,U0Mat,UMat,KEMat,HMat
@@ -71,7 +71,11 @@ function look_for_next_lambda(u0,u,ke,prevλ,α,M,P)
     maxESS = -res.minimum
     f(lambda) = ESS(get_weights(u0,u,ke,prevλ,lambda,M,P)) - α*maxESS
     rt = find_zeros(f,prevλ,2.0)
-    return rt[1]
+    if length(rt) == 0
+        return (1+prevλ)/2
+    else
+        return rt[1]
+    end
 end
 function merge_array(x)
     D,P,M = size(x)

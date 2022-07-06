@@ -1,29 +1,45 @@
-include("WR.jl");include("sonar.jl")
-using DataFrames,CSV
-function Run_Exp(N,M,ϵ,α)
-    NC = zeros(100); MM = zeros(100);
-    for n = 1:100
-        println("Running Simulation for index $(n)")
-        _,_,_,_,_,NC[n],MM[n]= wasterecycling.SMC(N,M,model=sonar,ϵ=ϵ,α=α,mass_mat="identity")
-        println("LogNC=",NC[n],"MM=",MM[n])
+using Distributed, SharedArrays,DataFrames,CSV
+function run_exp(N,M,ϵ,α,model;mass_mat,silence=true)
+    Time = SharedArray{Float64}(100)
+    NC   = SharedArray{Float64}(100)
+    MM  = SharedArray{Float64}(100)
+    @sync @distributed for n = 1:100
+        if !silence
+            println("Running Simulation for index $(n)")
+        end
+        t = @timed _,_,_,_,_,NC[n],MM[n] = wasterecycling.SMC(N,M,model=model,ϵ=ϵ,α=α,mass_mat=mass_mat);
+        Time[n] = t.time
     end
-    return NC,MM
+    return NC,MM,Time
 end
 
-println("Enter N"); N = readline();
+println("Enter the number of workers")
+nprocs = readline()
+nprocs = parse(Int64,nprocs)
+
+println("Enter N"); N = readline();println("Enter alpha"); alpha = readline();
 println("Enter the address to store the results");file_addr = readline()
-filename = "N"*N*"identityalpha50.csv"
-N = parse(Int64,N);
-traj_length = [50,100,200,500,1000]
+filename = "N"*N*"alpha"*alpha*"withtime.csv"
+N = parse(Int64,N);alpha = parse(Float64,alpha)/100
+traj_length = [100]
 M = div.(Ref(N),traj_length)
 df = DataFrame(ind=1:100)
-eps = [0.05,0.1,0.2,0.3]
-for i = 1:length(M)
-    for j = 1:length(eps)
-        println("Doing experiment for M = $(M[i]),eps=$(eps[j])")
-        NC,MM = Run_Exp(N,M[i],eps[j],0.5)
-        df[!,"eps"*string(Int(eps[j]*100))*"M"*string(M[i])*"_NC"] = NC
-        df[!,"eps"*string(Int(eps[j]*100))*"M"*string(M[i])*"_MM"] = MM
+ϵ = [0.2]
+
+
+for m in M
+    for eps in ϵ
+        addprocs(nprocs)
+        @everywhere include("sonar.jl")
+        @everywhere include("WR.jl")
+        @everywhere using Distributed, DistributedArrays
+        @everywhere using Statistics, StatsBase
+        println("Running experiments for M = $(m), ϵ = $(eps)...")
+        NC,MM,Time = run_exp(N,m,eps,alpha,sonar,mass_mat="identity",silence=false)
+        df[!,"eps"*string(Int(eps*100))*"M"*string(m)*"_NC"] = NC
+        df[!,"eps"*string(Int(eps*100))*"M"*string(m)*"_MM"] = MM
+        df[!,"eps"*string(Int(eps*100))*"M"*string(m)*"_Time"] = Time
+        rmprocs(procs()[2:end])
     end
 end
 

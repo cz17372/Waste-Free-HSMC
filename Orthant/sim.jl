@@ -4,15 +4,15 @@ using DataFrames,CSV
 function Run_Exp(N,M,MaxB,Σ,a,b)
     NC = zeros(100); MM = zeros(100);
     Threads.@threads for n = 1:100
-        println("Running Simulation for index $(n)")
         NC[n],MM[n]= SMC(N,M,0.2,Σ,a,b,150,MaxBounces=MaxB)
-        println("LogNC=",NC[n],"MM=",MM[n])
+        println("Simulation $(n): LogNC= ",NC[n]," MM= ",MM[n])
     end
     return NC,MM
 end
 println("Enter N"); N = readline();
 println("Enter the maximum number of bounces"); MaxB = readline()
-filename = "C:/Users/changzhang/Documents/data/Orthant"*N*"MaxB"*MaxB*".csv"
+println("Enter the address to store the results");file_addr = readline()
+filename = "N"*N*"MaxB"*MaxB*".csv"
 N = parse(Int64,N); MaxB = parse(Float64,MaxB)
 traj_length = [50,100,200,500,1000]
 M = div.(Ref(N),traj_length)
@@ -24,6 +24,4 @@ for i = 1:length(M)
     df[!,"NC_"*string(M[i])] = NC
     df[!,"MM_"*string(M[i])] = MM
 end
-CSV.write(filename,df)
-
-R = SMC(50000,500,0.2,Σ,a,b,150)
+CSV.write(file_addr*filename,df)
